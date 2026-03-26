@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useGetInterview, useGetQuestionAudio, useSubmitAnswer, useCompleteInterview } from "@workspace/api-client-react";
 import { useVoiceRecorder } from "@workspace/integrations-openai-ai-react";
-import { blobToBase64, playBase64Audio } from "@/lib/utils";
+import { blobToBase64, playBase64Audio, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Mic, Square, Volume2, Loader2, ArrowRight, CheckCircle } from "lucide-react";
