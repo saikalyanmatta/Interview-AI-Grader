@@ -1,0 +1,21 @@
+packages:
+  "framer-motion": "For smooth page transitions, animated progress bars, and recording indicators"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility for merging tailwind classes without style conflicts"
+  "lucide-react": "Beautiful, consistent icons for the UI"
+
+images:
+  - path: "artifacts/ai-interviewer/public/images/hero-bg.png"
+    description: "Abstract, deep dark navy and indigo gradient mesh with subtle glowing data nodes and sine waves, professional SaaS style, low contrast"
+    aspect_ratio: "16:9"
+  - path: "artifacts/ai-interviewer/public/images/ai-avatar.png"
+    description: "A highly professional, sleek 3D abstract geometric sphere made of glowing glass and indigo light, acting as an AI avatar on a dark background"
+    aspect_ratio: "1:1"
+  - path: "artifacts/ai-interviewer/public/images/logo.png"
+    description: "Minimalist modern logo mark featuring overlapping abstract soundwaves in vibrant indigo and cyan, dark background"
+    aspect_ratio: "1:1"
+
+notes:
+  - "The app uses a strict dark mode theme to match the 'professional SaaS' requirement."
+  - "Uses @workspace/api-client-react for all API calls and @workspace/replit-auth-web for auth."
+  - "Audio recording relies on the useVoiceRecorder hook and requires browser microphone permissions."

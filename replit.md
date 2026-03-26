@@ -1,8 +1,8 @@
-# Workspace
+# AI Interviewer — Vocalize.ai
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Full-stack AI Interviewer platform with two modes: **Candidate** (voice-based interview practice) and **Employer** (define job requirements, get hire/no-hire recommendations).
 
 ## Stack
 
@@ -15,82 +15,92 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Frontend**: React + Vite (react-vite artifact)
+- **Auth**: Replit Auth (OIDC + PKCE, Google login)
+- **AI**: OpenAI via Replit AI Integrations (gpt-5.2 for questions/grading, TTS for interviewer voice, STT for answers)
 
 ## Structure
 
 ```text
-artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+artifacts/
+  api-server/         Express API — auth, interviews, jobs, audio
+  ai-interviewer/     React + Vite frontend (previewPath: /)
+  mockup-sandbox/     Design sandbox (unused in prod)
+lib/
+  api-spec/           OpenAPI spec + Orval codegen config
+  api-client-react/   Generated React Query hooks
+  api-zod/            Generated Zod schemas from OpenAPI
+  db/                 Drizzle ORM schema + DB connection
+  replit-auth-web/    Browser auth hook (useAuth)
+  integrations-openai-ai-server/  OpenAI SDK server helpers
+  integrations-openai-ai-react/   React audio recording hooks
 ```
 
-## TypeScript & Composite Projects
+## Key Features
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+### Candidate Mode
+1. Sign in with Google (Replit Auth)
+2. Upload/paste resume text → skills extracted via AI
+3. Optionally select an employer-defined job profile
+4. AI generates 8 personalized interview questions (2 English, 4 Technical, 2 Behavioral)
+5. Each question is spoken aloud via TTS (OpenAI alloy voice)
+6. Candidate records answer via microphone → STT transcription
+7. After all questions → AI grades English fluency + each skill (0-100)
+8. Detailed report with recommendation (hire/no_hire/maybe)
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+### Employer Mode
+1. Create job profiles with title, description, skills with required proficiency (1-10)
+2. Candidates can select a job profile when starting an interview
+3. Grading report shows whether candidate meets each skill requirement
 
-## Root Scripts
+## API Endpoints
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+- `GET /api/auth/user` — current auth state
+- `GET /api/jobs` / `POST /api/jobs` — job profile CRUD
+- `GET /api/interviews` / `POST /api/interviews` — interview management
+- `POST /api/interviews/:id/resume` — upload resume text
+- `POST /api/interviews/:id/start` — generate 8 AI questions
+- `GET /api/interviews/:id/questions/:qId/audio` — TTS audio (base64 mp3)
+- `POST /api/interviews/:id/answers` — submit audio answer (STT transcription)
+- `POST /api/interviews/:id/complete` — grade interview, generate report
+- `GET /api/interviews/:id/report` — fetch completed report
 
-## Packages
+## Database Schema
 
-### `artifacts/api-server` (`@workspace/api-server`)
+- `users` — from Replit Auth (id, email, firstName, lastName, profileImageUrl)
+- `sessions` — OIDC session storage
+- `jobs` — employer job profiles (title, description, skills JSON)
+- `interviews` — interview sessions (userId, jobId, status, resumeText)
+- `interview_questions` — generated questions per interview
+- `interview_answers` — transcribed answers per question
+- `interview_reports` — grading results (englishScore, skillScores, recommendation)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+## Environment Variables
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+Auto-provisioned by Replit:
+- `DATABASE_URL`, `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`
+- `AI_INTEGRATIONS_OPENAI_BASE_URL`, `AI_INTEGRATIONS_OPENAI_API_KEY`
+- `REPLIT_DOMAINS`, `REPL_ID` (for auth)
 
-### `lib/db` (`@workspace/db`)
+## Development
 
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
+```bash
+# Start API server
+pnpm --filter @workspace/api-server run dev
 
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
+# Start frontend
+pnpm --filter @workspace/ai-interviewer run dev
 
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
+# Run codegen after API spec changes
+pnpm --filter @workspace/api-spec run codegen
 
-### `lib/api-spec` (`@workspace/api-spec`)
+# Push DB schema changes
+pnpm --filter @workspace/db run push
+```
 
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
+## Notes
 
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+- ElevenLabs was considered for TTS/STT but user chose OpenAI audio (Replit credits)
+- OpenAI alloy voice used for TTS interviewer questions
+- Audio recording uses useVoiceRecorder hook from integrations-openai-ai-react
+- Web Speech API is NOT used (OpenAI audio only)

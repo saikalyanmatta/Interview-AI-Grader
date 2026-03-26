@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AI Interviewer API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+  - name: interviews
+    description: Interview session management
+  - name: jobs
+    description: Job requirement profiles for employers
+  - name: audio
+    description: TTS and STT audio endpoints
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,7 +30,426 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '200':
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the OIDC authorization endpoint.
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: iss
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uri
+      responses:
+        '302':
+          description: Redirect after login.
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the session and begin OIDC logout
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '302':
+          description: Redirect to OIDC logout.
+  /mobile-auth/token-exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileAuthorizationCode
+      summary: Exchange a mobile OIDC code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileTokenExchangeRequest'
+      responses:
+        '200':
+          description: Session created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileTokenExchangeSuccess'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Token did not contain usable claims.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Token exchange failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /mobile-auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      summary: Delete a mobile session token
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+      responses:
+        '200':
+          description: Logout processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutSuccess'
+
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List all job profiles created by the authenticated user
+      responses:
+        "200":
+          description: List of job profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Create a new job requirement profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobBody"
+      responses:
+        "201":
+          description: Created job profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+  /jobs/{id}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get a job profile by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Job profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    put:
+      operationId: updateJob
+      tags: [jobs]
+      summary: Update a job profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobBody"
+      responses:
+        "200":
+          description: Updated job profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+    delete:
+      operationId: deleteJob
+      tags: [jobs]
+      summary: Delete a job profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /interviews:
+    get:
+      operationId: listInterviews
+      tags: [interviews]
+      summary: List interviews for the authenticated user
+      responses:
+        "200":
+          description: List of interviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Interview"
+    post:
+      operationId: createInterview
+      tags: [interviews]
+      summary: Create a new interview session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInterviewBody"
+      responses:
+        "201":
+          description: Created interview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Interview"
+
+  /interviews/{id}:
+    get:
+      operationId: getInterview
+      tags: [interviews]
+      summary: Get interview details including questions and answers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Interview details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewWithDetails"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /interviews/{id}/resume:
+    post:
+      operationId: uploadResume
+      tags: [interviews]
+      summary: Upload and parse resume for an interview
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadResumeBody"
+      responses:
+        "200":
+          description: Resume uploaded and parsed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeUploadResponse"
+
+  /interviews/{id}/start:
+    post:
+      operationId: startInterview
+      tags: [interviews]
+      summary: Start the interview and generate all questions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Interview started with questions generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewStartResponse"
+
+  /interviews/{id}/questions/{questionId}/audio:
+    get:
+      operationId: getQuestionAudio
+      tags: [interviews]
+      summary: Get TTS audio for a question
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Base64-encoded audio for the question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionAudioResponse"
+
+  /interviews/{id}/answers:
+    post:
+      operationId: submitAnswer
+      tags: [interviews]
+      summary: Submit a recorded audio answer for a question
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitAnswerBody"
+      responses:
+        "200":
+          description: Answer transcribed and saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitAnswerResponse"
+
+  /interviews/{id}/complete:
+    post:
+      operationId: completeInterview
+      tags: [interviews]
+      summary: Complete the interview and generate the grading report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Interview completed with grading report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewReport"
+
+  /interviews/{id}/report:
+    get:
+      operationId: getInterviewReport
+      tags: [interviews]
+      summary: Get the grading report for a completed interview
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Interview report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewReport"
+        "404":
+          description: Report not yet available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      description: Opaque session token — `Bearer <sid>`.
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      description: Browser session cookie.
+      schema:
+        type: string
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +459,318 @@ components:
       required:
         - status
 
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, 'null']
+          format: email
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        profileImageUrl:
+          type: [string, 'null']
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/AuthUser'
+            - type: 'null'
+    MobileTokenExchangeRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        code_verifier:
+          type: string
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+          format: uri
+        state:
+          type: string
+          minLength: 1
+        nonce:
+          type: string
+          minLength: 1
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    SkillRequirement:
+      type: object
+      required: [name, requiredLevel]
+      properties:
+        name:
+          type: string
+          description: Skill or subject name (e.g. "React", "Python", "SQL")
+        requiredLevel:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Required proficiency level out of 10
+
+    Job:
+      type: object
+      required: [id, title, description, skills, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillRequirement"
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateJobBody:
+      type: object
+      required: [title, description, skills]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillRequirement"
+
+    Interview:
+      type: object
+      required: [id, status, createdAt]
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: [integer, 'null']
+        jobTitle:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        candidateName:
+          type: [string, 'null']
+        resumeText:
+          type: [string, 'null']
+        totalQuestions:
+          type: integer
+        answeredQuestions:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    InterviewQuestion:
+      type: object
+      required: [id, questionText, questionIndex]
+      properties:
+        id:
+          type: integer
+        questionText:
+          type: string
+        questionIndex:
+          type: integer
+        category:
+          type: string
+          description: "Category: english, technical, behavioral"
+        skill:
+          type: [string, 'null']
+          description: The skill being tested
+
+    InterviewAnswer:
+      type: object
+      required: [id, questionId, transcript]
+      properties:
+        id:
+          type: integer
+        questionId:
+          type: integer
+        transcript:
+          type: string
+
+    InterviewWithDetails:
+      type: object
+      required: [id, status, questions, answers, createdAt]
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: [integer, 'null']
+        jobTitle:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        candidateName:
+          type: [string, 'null']
+        resumeText:
+          type: [string, 'null']
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InterviewQuestion"
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/InterviewAnswer"
+        report:
+          oneOf:
+            - $ref: "#/components/schemas/InterviewReport"
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateInterviewBody:
+      type: object
+      properties:
+        jobId:
+          type: integer
+          description: Optional job profile ID for employer-defined interviews
+
+    UploadResumeBody:
+      type: object
+      required: [resumeText]
+      properties:
+        resumeText:
+          type: string
+          description: Plain text content of the resume
+        candidateName:
+          type: string
+
+    ResumeUploadResponse:
+      type: object
+      required: [success, skills]
+      properties:
+        success:
+          type: boolean
+        skills:
+          type: array
+          items:
+            type: string
+          description: List of skills extracted from the resume
+
+    InterviewStartResponse:
+      type: object
+      required: [questions]
+      properties:
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InterviewQuestion"
+
+    QuestionAudioResponse:
+      type: object
+      required: [audio, format]
+      properties:
+        audio:
+          type: string
+          description: Base64-encoded audio
+        format:
+          type: string
+          description: Audio format (mp3)
+
+    SubmitAnswerBody:
+      type: object
+      required: [questionId, audio]
+      properties:
+        questionId:
+          type: integer
+        audio:
+          type: string
+          description: Base64-encoded audio of the candidate's answer
+
+    SubmitAnswerResponse:
+      type: object
+      required: [transcript, answerId]
+      properties:
+        transcript:
+          type: string
+        answerId:
+          type: integer
+
+    SkillScore:
+      type: object
+      required: [skill, score, feedback]
+      properties:
+        skill:
+          type: string
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        feedback:
+          type: string
+        meetRequirement:
+          type: [boolean, 'null']
+
+    InterviewReport:
+      type: object
+      required: [id, interviewId, englishScore, overallScore, recommendation, skillScores, feedback, createdAt]
+      properties:
+        id:
+          type: integer
+        interviewId:
+          type: integer
+        englishScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: English speaking ability score out of 100
+        englishFeedback:
+          type: string
+        overallScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        skillScores:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillScore"
+        recommendation:
+          type: string
+          enum: [hire, no_hire, maybe]
+        feedback:
+          type: string
+          description: Overall summary feedback
+        createdAt:
+          type: string
+          format: date-time
