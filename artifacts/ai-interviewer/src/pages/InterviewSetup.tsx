@@ -1,58 +1,99 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
-import { useCreateInterview, useUploadResume, useStartInterview, useListJobs } from "@workspace/api-client-react";
+import { useCreateInterview, useListJobs } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { BrainCircuit, FileText, ChevronRight, Check } from "lucide-react";
+import { BrainCircuit, FileText, Upload, ChevronRight, Check, X, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+async function uploadResumeFile(interviewId: number, file: File, candidateName: string) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("candidateName", candidateName);
+  const resp = await fetch(`${BASE}/api/interviews/${interviewId}/resume/upload`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error((err as any).error || "File upload failed");
+  }
+  return resp.json();
+}
+
+async function uploadResumeText(interviewId: number, resumeText: string, candidateName: string) {
+  const resp = await fetch(`${BASE}/api/interviews/${interviewId}/resume`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ resumeText, candidateName }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error((err as any).error || "Resume upload failed");
+  }
+  return resp.json();
+}
 
 export default function InterviewSetup() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
+  const [inputMode, setInputMode] = useState<"file" | "text">("file");
   const [resumeText, setResumeText] = useState("");
   const [candidateName, setCandidateName] = useState("");
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
-  const [interviewId, setInterviewId] = useState<number | null>(null);
-  
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const { data: jobs } = useListJobs();
   const createMutation = useCreateInterview();
-  const uploadMutation = useUploadResume();
-  const startMutation = useStartInterview();
 
-  const isProcessing = createMutation.isPending || uploadMutation.isPending || startMutation.isPending;
-
-  const handleStart = async () => {
-    if (!resumeText.trim()) {
-      toast({ title: "Resume required", description: "Please paste your resume text.", variant: "destructive" });
+  const handleFileChange = (file: File) => {
+    const nameOk = file.name.match(/\.(pdf|docx|txt)$/i);
+    if (!nameOk) {
+      toast({ title: "Unsupported file", description: "Please upload a PDF, DOCX, or TXT file.", variant: "destructive" });
       return;
     }
+    setSelectedFile(file);
+  };
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileChange(file);
+  };
+
+  const handleStart = async () => {
+    const hasResume = inputMode === "file" ? !!selectedFile : resumeText.trim().length > 0;
+    if (!hasResume) {
+      toast({ title: "Resume required", description: inputMode === "file" ? "Please upload your resume file." : "Please paste your resume text.", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
     try {
-      // 1. Create interview container
       const interview = await createMutation.mutateAsync({ data: { jobId: selectedJobId || undefined } });
-      setInterviewId(interview.id);
-      
-      // 2. Upload resume
-      await uploadMutation.mutateAsync({ 
-        id: interview.id, 
-        data: { resumeText, candidateName: candidateName || "Candidate" } 
-      });
-      
-      // 3. Start interview (generates questions)
-      setStep(3); // Show generating UI
-      await startMutation.mutateAsync({ id: interview.id });
-      
-      // 4. Navigate to session
+      if (inputMode === "file" && selectedFile) {
+        await uploadResumeFile(interview.id, selectedFile, candidateName || "Candidate");
+      } else {
+        await uploadResumeText(interview.id, resumeText, candidateName || "Candidate");
+      }
       setLocation(`/interview/${interview.id}`);
-      
     } catch (error: any) {
       toast({ title: "Setup failed", description: error.message || "Failed to start interview", variant: "destructive" });
-      setStep(1);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -60,114 +101,137 @@ export default function InterviewSetup() {
     <div className="max-w-3xl mx-auto py-8">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-display font-bold">Setup Interview</h1>
-        <p className="text-muted-foreground mt-2">Provide your details so the AI can tailor the questions.</p>
+        <p className="text-muted-foreground mt-2">Provide your details so the AI can tailor the adaptive session.</p>
       </div>
 
       <div className="flex justify-center mb-8">
         <div className="flex items-center gap-2">
-          <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold ${step >= 1 ? 'bg-primary text-white' : 'bg-secondary text-muted-foreground'}`}>1</div>
-          <div className={`h-1 w-12 rounded-full ${step >= 2 ? 'bg-primary' : 'bg-secondary'}`} />
-          <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold ${step >= 2 ? 'bg-primary text-white' : 'bg-secondary text-muted-foreground'}`}>2</div>
+          {[1, 2].map((s, i) => (
+            <div key={s} className="flex items-center gap-2">
+              {i > 0 && <div className={`h-1 w-12 rounded-full ${step >= s ? "bg-primary" : "bg-secondary"}`} />}
+              <button
+                onClick={() => step > s ? setStep(s) : undefined}
+                className={`h-8 w-8 rounded-full flex items-center justify-center font-bold transition-colors ${step >= s ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}
+              >
+                {step > s ? <Check className="h-4 w-4" /> : s}
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 
       <Card className="glass-panel border-white/10 overflow-hidden relative">
-        {step === 3 && (
+        {isLoading && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-8 text-center">
             <BrainCircuit className="h-16 w-16 text-primary animate-pulse mb-6" />
-            <h3 className="text-2xl font-display font-bold mb-2">Analyzing Profile...</h3>
-            <p className="text-muted-foreground max-w-md">Our AI is reading your resume and generating personalized technical and behavioral questions.</p>
+            <h3 className="text-2xl font-display font-bold mb-2">Analyzing Resume...</h3>
+            <p className="text-muted-foreground max-w-md">Extracting your skills to prepare an adaptive, personalized interview session.</p>
           </div>
         )}
 
         <CardContent className="p-8">
-          {step === 1 && (
-            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Full Name</label>
-                <Input 
-                  placeholder="e.g. Jane Doe" 
-                  value={candidateName}
-                  onChange={(e) => setCandidateName(e.target.value)}
-                />
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <FileText className="h-4 w-4" /> Paste Resume Text
-                </label>
-                <Textarea 
-                  placeholder="Paste your professional experience, skills, and education here..." 
-                  className="min-h-[250px] font-mono text-xs leading-relaxed"
-                  value={resumeText}
-                  onChange={(e) => setResumeText(e.target.value)}
-                />
-              </div>
+          <AnimatePresence mode="wait">
+            {step === 1 && (
+              <motion.div key="step1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Your Name</label>
+                  <Input placeholder="Full name (optional)" value={candidateName} onChange={(e) => setCandidateName(e.target.value)} className="bg-black/20 border-white/10" />
+                </div>
 
-              <div className="flex justify-end">
-                <Button 
-                  onClick={() => setStep(2)} 
-                  disabled={!resumeText.trim()}
-                  variant="gradient"
-                  className="gap-2"
-                >
-                  Next Step <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 2 && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Target Job Profile (Optional)</label>
-                <p className="text-sm text-muted-foreground mb-4">Select a specific job to be evaluated against its requirements, or skip for a general assessment.</p>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div 
-                    className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedJobId === null ? 'border-primary bg-primary/10' : 'border-white/10 bg-black/20 hover:border-white/30'}`}
-                    onClick={() => setSelectedJobId(null)}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-semibold">General Assessment</h4>
-                      {selectedJobId === null && <Check className="h-5 w-5 text-primary" />}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Standard software engineering interview based purely on your resume.</p>
+                <div>
+                  <label className="block text-sm font-medium mb-3">Resume</label>
+                  <div className="flex gap-2 mb-4">
+                    {(["file", "text"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setInputMode(mode)}
+                        className={cn("flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all border", inputMode === mode ? "bg-primary/20 border-primary text-primary" : "border-white/10 text-muted-foreground hover:border-white/30")}
+                      >
+                        {mode === "file" ? <><Upload className="h-4 w-4 inline mr-2" />Upload File</> : <><FileText className="h-4 w-4 inline mr-2" />Paste Text</>}
+                      </button>
+                    ))}
                   </div>
 
-                  {jobs?.map(job => (
-                    <div 
-                      key={job.id}
-                      className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedJobId === job.id ? 'border-primary bg-primary/10' : 'border-white/10 bg-black/20 hover:border-white/30'}`}
-                      onClick={() => setSelectedJobId(job.id)}
+                  {inputMode === "file" ? (
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                      onDragLeave={() => setIsDragging(false)}
+                      onDrop={handleDrop}
+                      onClick={() => fileRef.current?.click()}
+                      className={cn("border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all", isDragging ? "border-primary bg-primary/10" : "border-white/20 hover:border-white/40 hover:bg-white/5", selectedFile && "border-emerald-500/50 bg-emerald-500/5")}
                     >
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-semibold truncate pr-2">{job.title}</h4>
-                        {selectedJobId === job.id && <Check className="h-5 w-5 text-primary shrink-0" />}
-                      </div>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {job.skills.slice(0, 3).map((s, i) => (
-                          <Badge key={i} variant="outline" className="text-[10px]">{s.name}</Badge>
-                        ))}
-                        {job.skills.length > 3 && <span className="text-xs text-muted-foreground">+{job.skills.length - 3}</span>}
-                      </div>
+                      <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChange(f); }} />
+                      {selectedFile ? (
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/30 px-4 py-2 rounded-lg">
+                            <FileUp className="h-5 w-5 text-emerald-400" />
+                            <span className="text-sm font-medium text-emerald-400">{selectedFile.name}</span>
+                            <button onClick={(e) => { e.stopPropagation(); setSelectedFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="text-emerald-400/60 hover:text-emerald-400">
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">Click to replace</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                          <Upload className="h-10 w-10 text-white/20" />
+                          <div>
+                            <p className="font-medium text-white/60">Drop your resume here or click to browse</p>
+                            <p className="text-xs mt-1">PDF, DOCX, or TXT — up to 20 MB</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  ) : (
+                    <Textarea placeholder="Paste your full resume text here..." value={resumeText} onChange={(e) => setResumeText(e.target.value)} className="min-h-[200px] bg-black/20 border-white/10 font-mono text-sm" />
+                  )}
                 </div>
-              </div>
 
-              <div className="flex justify-between pt-4 border-t border-white/10">
-                <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
-                <Button 
-                  onClick={handleStart} 
-                  isLoading={isProcessing}
-                  variant="gradient"
-                >
-                  Generate Interview
-                </Button>
-              </div>
-            </motion.div>
-          )}
+                <div className="flex justify-end pt-4 border-t border-white/10">
+                  <Button variant="gradient" onClick={() => setStep(2)}>
+                    Next <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 2 && (
+              <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Interview Profile <span className="text-muted-foreground font-normal">(optional)</span></label>
+                  <p className="text-xs text-muted-foreground mb-4">Choose a job profile for skill-specific grading, or run a general adaptive assessment.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div onClick={() => setSelectedJobId(null)} className={cn("p-4 rounded-xl border cursor-pointer transition-all", selectedJobId === null ? "border-primary bg-primary/10" : "border-white/10 bg-black/20 hover:border-white/30")}>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold">General Assessment</h4>
+                        {selectedJobId === null && <Check className="h-5 w-5 text-primary" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Adaptive interview based on your resume skills — number of questions adjusts dynamically.</p>
+                    </div>
+                    {jobs?.map((job) => (
+                      <div key={job.id} onClick={() => setSelectedJobId(job.id)} className={cn("p-4 rounded-xl border cursor-pointer transition-all", selectedJobId === job.id ? "border-primary bg-primary/10" : "border-white/10 bg-black/20 hover:border-white/30")}>
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-semibold truncate pr-2">{job.title}</h4>
+                          {selectedJobId === job.id && <Check className="h-5 w-5 text-primary shrink-0" />}
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {job.skills.slice(0, 3).map((s, i) => <Badge key={i} variant="outline" className="text-[10px]">{s.name}</Badge>)}
+                          {job.skills.length > 3 && <span className="text-xs text-muted-foreground">+{job.skills.length - 3}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-between pt-4 border-t border-white/10">
+                  <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
+                  <Button variant="gradient" onClick={handleStart} disabled={isLoading}>
+                    {isLoading ? "Preparing..." : "Begin Interview"}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </CardContent>
       </Card>
     </div>

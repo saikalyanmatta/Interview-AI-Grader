@@ -24,6 +24,14 @@ export const skillScoreSchema = z.object({
 });
 export type SkillScore = z.infer<typeof skillScoreSchema>;
 
+export const stutterItemSchema = z.object({
+  skill: z.string(),
+  avgStutterScore: z.number(),
+  questionsAsked: z.number(),
+  notes: z.string(),
+});
+export type StutterItem = z.infer<typeof stutterItemSchema>;
+
 export const jobsTable = pgTable("jobs", {
   id: serial("id").primaryKey(),
   userId: text("user_id")
@@ -92,6 +100,10 @@ export const interviewAnswersTable = pgTable("interview_answers", {
     .notNull()
     .references(() => interviewQuestionsTable.id, { onDelete: "cascade" }),
   transcript: text("transcript").notNull(),
+  stutterScore: integer("stutter_score").default(0),
+  stutterNotes: text("stutter_notes").default(""),
+  confidenceScore: integer("confidence_score"),
+  confidenceNotes: text("confidence_notes").default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -106,6 +118,9 @@ export const interviewReportsTable = pgTable("interview_reports", {
   englishScore: integer("english_score").notNull(),
   englishFeedback: text("english_feedback").notNull().default(""),
   overallScore: integer("overall_score").notNull(),
+  confidenceScore: integer("confidence_score").default(70),
+  confidenceNotes: text("confidence_notes").default(""),
+  stutterAnalysis: jsonb("stutter_analysis").$type<StutterItem[]>().notNull().default([]),
   skillScores: jsonb("skill_scores").$type<SkillScore[]>().notNull().default([]),
   recommendation: text("recommendation", {
     enum: ["hire", "no_hire", "maybe"],

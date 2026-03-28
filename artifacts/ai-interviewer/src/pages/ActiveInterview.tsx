@@ -1,259 +1,437 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useGetInterview, useGetQuestionAudio, useSubmitAnswer, useCompleteInterview } from "@workspace/api-client-react";
-import { useVoiceRecorder } from "@workspace/integrations-openai-ai-react";
+import { useCompleteInterview } from "@workspace/api-client-react";
 import { blobToBase64, playBase64Audio, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Mic, Square, Volume2, Loader2, ArrowRight, CheckCircle } from "lucide-react";
+import { Mic, Square, Volume2, Loader2, ArrowRight, CheckCircle, Camera, CameraOff, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+type InterviewQuestion = { id: number; questionText: string; category: string; skill: string | null; questionIndex: number };
+type Phase = "init" | "loading_question" | "fetching_audio" | "speaking" | "countdown" | "recording" | "processing" | "answered" | "completing";
+
+interface AnswerResult { transcript: string; stutterScore: number; stutterNotes: string; confidenceScore: number | null }
+
+async function fetchNextQuestion(interviewId: number): Promise<{ isComplete: boolean; question: InterviewQuestion | null }> {
+  const resp = await fetch(`${BASE}/api/interviews/${interviewId}/next-question`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!resp.ok) throw new Error("Failed to fetch next question");
+  return resp.json();
+}
+
+async function fetchQuestionAudio(interviewId: number, questionId: number): Promise<{ audio: string; format: string }> {
+  const resp = await fetch(`${BASE}/api/interviews/${interviewId}/questions/${questionId}/audio`, { credentials: "include" });
+  if (!resp.ok) throw new Error("Failed to fetch audio");
+  return resp.json();
+}
+
+async function submitAnswer(interviewId: number, questionId: number, audioB64: string, facialFrames: string[]): Promise<AnswerResult> {
+  const resp = await fetch(`${BASE}/api/interviews/${interviewId}/answers`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ questionId, audio: audioB64, facialFrames }),
+  });
+  if (!resp.ok) throw new Error("Failed to submit answer");
+  return resp.json();
+}
+
+function captureVideoFrame(videoEl: HTMLVideoElement): string | null {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 240;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(videoEl, 0, 0, 320, 240);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+    return dataUrl.split(",")[1] || null;
+  } catch {
+    return null;
+  }
+}
 
 export default function ActiveInterview() {
   const [, params] = useRoute("/interview/:id");
   const [, setLocation] = useLocation();
   const id = parseInt(params?.id || "0");
   const { toast } = useToast();
-
-  const { data: interview, isLoading: isLoadingInterview } = useGetInterview(id);
-  const submitMutation = useSubmitAnswer();
   const completeMutation = useCompleteInterview();
 
-  const { state: recordingState, startRecording, stopRecording } = useVoiceRecorder();
-  
-  const [currentQIndex, setCurrentQIndex] = useState(0);
-  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
-  const [isProcessingAnswer, setIsProcessingAnswer] = useState(false);
+  const [phase, setPhase] = useState<Phase>("init");
+  const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
+  const [answers, setAnswers] = useState<AnswerResult[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState<InterviewQuestion | null>(null);
   const [transcript, setTranscript] = useState("");
+  const [stutterInfo, setStutterInfo] = useState<{ score: number; notes: string } | null>(null);
+  const [countdown, setCountdown] = useState(3);
+  const [cameraOn, setCameraOn] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
+  const [malpracticeAlerts, setMalpracticeAlerts] = useState<string[]>([]);
 
-  const currentQuestion = interview?.questions?.[currentQIndex];
-  
-  // Fetch audio for current question
-  const { data: audioData, isFetching: isFetchingAudio } = useGetQuestionAudio(id, currentQuestion?.id || 0, {
-    query: { enabled: !!currentQuestion?.id }
-  });
-
+  const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const facialFramesRef = useRef<string[]>([]);
+  const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Play audio when available (auto-play attempt)
-  useEffect(() => {
-    if (audioData && currentQuestion) {
-      playCurrentAudio();
-    }
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, [audioData, currentQuestion?.id]);
-
-  const playCurrentAudio = () => {
-    if (!audioData) return;
-    if (audioRef.current) audioRef.current.pause();
-    
+  const initCamera = useCallback(async () => {
     try {
-      setIsAiSpeaking(true);
-      const audio = playBase64Audio(audioData.audio, audioData.format);
-      audioRef.current = audio;
-      
-      audio.onended = () => {
-        setIsAiSpeaking(false);
-      };
-      audio.onerror = () => {
-        setIsAiSpeaking(false);
-        toast({ title: "Audio playback failed", variant: "destructive" });
-      };
-    } catch (e) {
-      setIsAiSpeaking(false);
-    }
-  };
-
-  const handleToggleRecording = async () => {
-    if (recordingState === "recording") {
-      try {
-        setIsProcessingAnswer(true);
-        const blob = await stopRecording();
-        if (blob.size === 0) throw new Error("Empty audio recording");
-        
-        const b64 = await blobToBase64(blob);
-        
-        if (!currentQuestion) return;
-
-        const res = await submitMutation.mutateAsync({
-          id,
-          data: { questionId: currentQuestion.id, audio: b64 }
-        });
-
-        setTranscript(res.transcript);
-        
-      } catch (err: any) {
-        toast({ title: "Submission failed", description: err.message, variant: "destructive" });
-      } finally {
-        setIsProcessingAnswer(false);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
+      mediaStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
       }
-    } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        setIsAiSpeaking(false);
-      }
-      setTranscript("");
-      await startRecording();
-    }
-  };
-
-  const handleNext = async () => {
-    if (!interview || !interview.questions) return;
-    
-    if (currentQIndex < interview.questions.length - 1) {
-      setCurrentQIndex(prev => prev + 1);
-      setTranscript("");
-    } else {
-      // Complete interview
+      setCameraOn(true);
+    } catch (err) {
+      setCameraError(true);
       try {
+        const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStreamRef.current = audioOnly;
+      } catch {
+        toast({ title: "Microphone required", description: "Please allow microphone access to continue.", variant: "destructive" });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    initCamera();
+    return () => {
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      audioRef.current?.pause();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (phase === "init" && mediaStreamRef.current) {
+      loadNextQuestion();
+    }
+  }, [phase, mediaStreamRef.current]);
+
+  useEffect(() => {
+    if (mediaStreamRef.current && phase === "init") {
+      setTimeout(loadNextQuestion, 500);
+    }
+  }, [cameraOn, cameraError]);
+
+  const loadNextQuestion = async () => {
+    if (phase !== "init" && phase !== "answered") return;
+    setPhase("loading_question");
+    try {
+      const result = await fetchNextQuestion(id);
+      if (result.isComplete || !result.question) {
+        setPhase("completing");
         await completeMutation.mutateAsync({ id });
         setLocation(`/interview/${id}/report`);
-      } catch (err: any) {
-        toast({ title: "Failed to complete", description: err.message, variant: "destructive" });
+        return;
       }
+      const q = result.question;
+      setQuestions((prev) => [...prev, q]);
+      setCurrentQuestion(q);
+      setTranscript("");
+      setStutterInfo(null);
+      setPhase("fetching_audio");
+      const audioData = await fetchQuestionAudio(id, q.id);
+      setPhase("speaking");
+      playAudio(audioData.audio, audioData.format);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+      setPhase("init");
     }
   };
 
-  if (isLoadingInterview) {
-    return <div className="flex h-[60vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-  }
+  const playAudio = (base64: string, format: string) => {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    try {
+      const audio = playBase64Audio(base64, format);
+      audioRef.current = audio;
+      audio.onended = () => startCountdown();
+      audio.onerror = () => { setPhase("countdown"); startCountdown(); };
+    } catch {
+      startCountdown();
+    }
+  };
 
-  if (!interview || !currentQuestion) {
-    return <div className="text-center py-20">Interview not found.</div>;
-  }
+  const startCountdown = () => {
+    setPhase("countdown");
+    setCountdown(3);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    let c = 3;
+    countdownRef.current = setInterval(() => {
+      c--;
+      setCountdown(c);
+      if (c <= 0) {
+        if (countdownRef.current) clearInterval(countdownRef.current);
+        startRecording();
+      }
+    }, 1000);
+  };
 
-  const progress = ((currentQIndex) / (interview.questions.length || 1)) * 100;
-  const isLastQuestion = currentQIndex === (interview.questions.length - 1);
-  const hasAnsweredCurrent = !!transcript || interview.answers?.some(a => a.questionId === currentQuestion.id);
+  const startRecording = async () => {
+    const stream = mediaStreamRef.current;
+    if (!stream) { toast({ title: "No microphone", description: "Allow microphone to answer.", variant: "destructive" }); return; }
+    const audioStream = new MediaStream(stream.getAudioTracks());
+    const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac"]
+      .find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+
+    const recorder = mimeType ? new MediaRecorder(audioStream, { mimeType }) : new MediaRecorder(audioStream);
+    audioChunksRef.current = [];
+    facialFramesRef.current = [];
+
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+    recorder.start(100);
+    mediaRecorderRef.current = recorder;
+    setPhase("recording");
+
+    if (cameraOn && videoRef.current) {
+      frameIntervalRef.current = setInterval(() => {
+        if (videoRef.current && facialFramesRef.current.length < 5) {
+          const frame = captureVideoFrame(videoRef.current);
+          if (frame) facialFramesRef.current.push(frame);
+        }
+      }, 3000);
+    }
+  };
+
+  const stopRecording = useCallback((): Promise<Blob> => {
+    return new Promise((resolve) => {
+      if (frameIntervalRef.current) { clearInterval(frameIntervalRef.current); frameIntervalRef.current = null; }
+      const recorder = mediaRecorderRef.current;
+      if (!recorder || recorder.state !== "recording") { resolve(new Blob()); return; }
+      recorder.onstop = () => {
+        const blobType = recorder.mimeType || "audio/webm";
+        resolve(new Blob(audioChunksRef.current, { type: blobType }));
+      };
+      recorder.stop();
+    });
+  }, []);
+
+  const handleStopRecording = async () => {
+    if (!currentQuestion) return;
+    setPhase("processing");
+    try {
+      const blob = await stopRecording();
+      if (blob.size === 0) throw new Error("No audio recorded — please try again.");
+      const audioB64 = await blobToBase64(blob);
+      const frames = [...facialFramesRef.current];
+      const result = await submitAnswer(id, currentQuestion.id, audioB64, frames);
+      setTranscript(result.transcript);
+      setStutterInfo({ score: result.stutterScore, notes: result.stutterNotes });
+      setAnswers((prev) => [...prev, result]);
+
+      if (result.confidenceScore !== null && result.confidenceScore < 40) {
+        setMalpracticeAlerts((prev) => [...prev, `Low confidence detected on Q${questions.length}`]);
+      }
+      setPhase("answered");
+    } catch (err: any) {
+      toast({ title: "Submission failed", description: err.message, variant: "destructive" });
+      setPhase("answered");
+    }
+  };
+
+  const handleReplay = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    }
+  };
+
+  const handleNext = () => {
+    if (phase !== "answered") return;
+    setPhase("init");
+    loadNextQuestion();
+  };
+
+  const questionNumber = questions.length;
+  const isRecording = phase === "recording";
+  const isProcessing = phase === "processing";
+  const isLoadingNext = phase === "loading_question" || phase === "fetching_audio" || phase === "completing";
+  const isSpeaking = phase === "speaking";
+  const isCountdown = phase === "countdown";
+  const canNext = phase === "answered" && !!transcript;
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col min-h-[calc(100vh-8rem)]">
-      
-      <div className="mb-8">
-        <div className="flex justify-between text-sm font-medium text-muted-foreground mb-3">
-          <span>Question {currentQIndex + 1} of {interview.questions.length}</span>
-          <span className="capitalize">{currentQuestion.category} {currentQuestion.skill && `• ${currentQuestion.skill}`}</span>
+    <div className="max-w-5xl mx-auto flex flex-col min-h-[calc(100vh-8rem)] gap-6">
+      {malpracticeAlerts.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400 text-sm">
+          <ShieldAlert className="h-4 w-4 shrink-0" />
+          <span>Anti-malpractice: {malpracticeAlerts[malpracticeAlerts.length - 1]}</span>
         </div>
-        <Progress value={progress} className="h-1.5" />
+      )}
+
+      <div>
+        <div className="flex justify-between text-sm font-medium text-muted-foreground mb-3">
+          <span>Question {questionNumber} {isLoadingNext && !isRecording ? "— generating next..." : ""}</span>
+          <span className="capitalize">{currentQuestion?.category ?? "—"}{currentQuestion?.skill ? ` • ${currentQuestion.skill}` : ""}</span>
+        </div>
+        <Progress value={Math.min(questionNumber * 8, 95)} className="h-1.5" />
+        <p className="text-xs text-muted-foreground mt-1">Adaptive — interview length adjusts to your skills</p>
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-8">
-        {/* Left Col: Avatar & Controls */}
-        <div className="w-full lg:w-1/3 flex flex-col items-center justify-center p-8 glass-panel rounded-3xl border border-white/5 relative overflow-hidden">
-          {/* Animated background glow behind avatar */}
-          <div className={cn(
-            "absolute inset-0 bg-primary/10 blur-[50px] transition-opacity duration-1000",
-            isAiSpeaking ? "opacity-100" : "opacity-0"
-          )} />
-          
-          <div className="relative z-10 w-40 h-40 mb-8">
-            <img 
-              src={`${import.meta.env.BASE_URL}images/ai-avatar.png`} 
-              alt="AI Interviewer" 
-              className={cn(
-                "w-full h-full object-cover rounded-full transition-transform duration-500",
-                isAiSpeaking && "scale-105 shadow-[0_0_40px_rgba(124,58,237,0.5)]"
+      <div className="flex-1 flex flex-col lg:flex-row gap-6">
+        <div className="w-full lg:w-[300px] flex flex-col gap-4">
+          <div className="glass-panel rounded-3xl border border-white/5 p-6 flex flex-col items-center relative overflow-hidden">
+            <div className={cn("absolute inset-0 bg-primary/10 blur-[50px] transition-opacity duration-1000", isSpeaking ? "opacity-100" : "opacity-0")} />
+            <div className="relative z-10 w-32 h-32 mb-4">
+              <img
+                src={`${import.meta.env.BASE_URL}images/ai-avatar.png`}
+                alt="AI Interviewer"
+                className={cn("w-full h-full object-cover rounded-full transition-all duration-500", isSpeaking && "scale-105 shadow-[0_0_40px_rgba(124,58,237,0.5)]")}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+              {isSpeaking && <div className="absolute inset-0 rounded-full border-2 border-primary animate-ping opacity-20" />}
+            </div>
+
+            <div className="relative z-10 flex flex-col items-center gap-2 w-full">
+              {isLoadingNext && (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {phase === "loading_question" ? "Generating question..." : phase === "fetching_audio" ? "Loading audio..." : "Finalizing..."}
+                </div>
               )}
-            />
-            {isAiSpeaking && (
-              <div className="absolute inset-0 rounded-full border-2 border-primary animate-ping opacity-20" />
+              {isSpeaking && <div className="text-sm text-primary font-medium">AI is speaking...</div>}
+              {isCountdown && (
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-primary mb-1">{countdown}</div>
+                  <div className="text-xs text-muted-foreground">Recording starts...</div>
+                </div>
+              )}
+              {!isLoadingNext && !isCountdown && (
+                <Button variant="outline" size="sm" onClick={handleReplay} disabled={isSpeaking || isRecording || isLoadingNext} className="bg-black/40 border-white/10 text-xs">
+                  <Volume2 className="h-3 w-3 mr-1" /> Replay Question
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden relative" style={{ height: 180 }}>
+            {cameraOn ? (
+              <>
+                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+                <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/60 rounded-full px-2 py-1">
+                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-[10px] text-white/80">Live</span>
+                </div>
+              </>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-black/30">
+                {cameraError ? <CameraOff className="h-8 w-8 text-white/20" /> : <Camera className="h-8 w-8 text-white/20" />}
+                <span className="text-xs text-muted-foreground">{cameraError ? "Camera not available" : "Initializing camera..."}</span>
+              </div>
             )}
           </div>
 
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={playCurrentAudio} 
-            disabled={isFetchingAudio || isAiSpeaking || recordingState === "recording"}
-            className="mb-8 bg-black/40 border-white/10"
+          <Button
+            size="lg"
+            variant={isRecording ? "destructive" : "gradient"}
+            className={cn("w-full h-14 text-base shadow-xl transition-all duration-300", isRecording && "animate-pulse")}
+            onClick={isRecording ? handleStopRecording : phase === "answered" ? handleNext : undefined}
+            disabled={isProcessing || isSpeaking || isCountdown || isLoadingNext}
           >
-            {isFetchingAudio ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Volume2 className="h-4 w-4 mr-2" />}
-            {isAiSpeaking ? "Speaking..." : "Play Audio"}
+            {isProcessing ? (<><Loader2 className="mr-2 h-5 w-5 animate-spin" />Processing...</>)
+              : isRecording ? (<><Square className="mr-2 h-5 w-5 fill-current" />Stop Recording</>)
+              : phase === "answered" ? (<><ArrowRight className="mr-2 h-5 w-5" />Next Question</>)
+              : (<><Mic className="mr-2 h-5 w-5" />Record Answer</>)}
           </Button>
-
-          <div className="w-full mt-auto">
-            <Button 
-              size="lg" 
-              variant={recordingState === "recording" ? "destructive" : "gradient"}
-              className={cn(
-                "w-full h-16 text-lg shadow-xl transition-all duration-300",
-                recordingState === "recording" && "animate-pulse"
-              )}
-              onClick={handleToggleRecording}
-              disabled={isProcessingAnswer || isAiSpeaking}
-            >
-              {isProcessingAnswer ? (
-                <><Loader2 className="mr-2 h-6 w-6 animate-spin" /> Processing...</>
-              ) : recordingState === "recording" ? (
-                <><Square className="mr-2 h-6 w-6 fill-current" /> Stop Recording</>
-              ) : (
-                <><Mic className="mr-2 h-6 w-6" /> {hasAnsweredCurrent ? "Retry Answer" : "Record Answer"}</>
-              )}
-            </Button>
-          </div>
         </div>
 
-        {/* Right Col: Text Content */}
-        <div className="w-full lg:w-2/3 flex flex-col gap-6">
+        <div className="flex-1 flex flex-col gap-4">
           <AnimatePresence mode="wait">
-            <motion.div 
-              key={currentQuestion.id}
+            <motion.div
+              key={currentQuestion?.id ?? "loading"}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="flex-1 glass-panel rounded-3xl p-8 border border-white/5 flex flex-col"
+              className="glass-panel rounded-3xl p-8 border border-white/5 flex flex-col flex-1"
             >
-              <h2 className="text-2xl font-display font-semibold leading-relaxed mb-6">
-                {currentQuestion.questionText}
-              </h2>
-
-              <div className="mt-auto pt-6 border-t border-white/10 min-h-[150px]">
-                {recordingState === "recording" ? (
-                  <div className="flex items-center gap-3 text-emerald-400 font-medium">
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              {currentQuestion ? (
+                <>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground px-2 py-1 rounded-full bg-white/5 border border-white/10">
+                      {currentQuestion.category}
                     </span>
-                    Listening...
+                    {currentQuestion.skill && (
+                      <span className="text-xs font-medium text-primary px-2 py-1 rounded-full bg-primary/10 border border-primary/20">
+                        {currentQuestion.skill}
+                      </span>
+                    )}
                   </div>
-                ) : transcript ? (
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-primary" /> Captured Answer:
-                    </h4>
-                    <p className="text-sm leading-relaxed text-foreground/90 italic">"{transcript}"</p>
+                  <h2 className="text-2xl font-display font-semibold leading-relaxed mb-6">
+                    {currentQuestion.questionText}
+                  </h2>
+
+                  <div className="mt-auto pt-6 border-t border-white/10 min-h-[140px]">
+                    {isRecording && (
+                      <div className="flex items-center gap-3 text-emerald-400 font-medium">
+                        <span className="relative flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+                        </span>
+                        Listening... speak naturally, take your time.
+                      </div>
+                    )}
+                    {isCountdown && (
+                      <div className="text-muted-foreground text-sm">Get ready to answer — recording starts in {countdown}s...</div>
+                    )}
+                    {isProcessing && (
+                      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Transcribing and analyzing your answer...
+                      </div>
+                    )}
+                    {phase === "answered" && transcript && (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-primary" /> Captured Answer:
+                        </h4>
+                        <p className="text-sm leading-relaxed text-foreground/90 italic">"{transcript}"</p>
+                        {stutterInfo && (
+                          <div className={cn("flex items-start gap-2 text-xs rounded-lg px-3 py-2 border", stutterInfo.score > 50 ? "bg-amber-500/10 border-amber-500/20 text-amber-400" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400")}>
+                            <span className="shrink-0 font-bold">{stutterInfo.score > 50 ? "⚠" : "✓"}</span>
+                            <span>{stutterInfo.notes}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!isRecording && !isCountdown && !isProcessing && phase !== "answered" && (
+                      <div className="text-muted-foreground/40 italic text-sm">Your transcript will appear here after recording.</div>
+                    )}
                   </div>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-muted-foreground/50 italic text-sm">
-                    Your answer transcript will appear here.
-                  </div>
-                )}
-              </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
 
-          <div className="flex justify-end">
-            <Button 
-              size="lg" 
-              onClick={handleNext} 
-              disabled={!hasAnsweredCurrent || completeMutation.isPending}
-              className="px-8"
-              variant={isLastQuestion ? "gradient" : "secondary"}
-            >
-              {completeMutation.isPending ? (
-                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Finalizing...</>
-              ) : isLastQuestion ? (
-                <><CheckCircle className="mr-2 h-5 w-5" /> Complete Interview</>
-              ) : (
-                <>Next Question <ArrowRight className="ml-2 h-5 w-5" /></>
-              )}
-            </Button>
-          </div>
+          {answers.length > 0 && (
+            <div className="glass-panel rounded-2xl border border-white/5 p-4">
+              <h4 className="text-xs font-medium text-muted-foreground mb-3">Progress — {answers.length} answer(s) submitted</h4>
+              <div className="flex gap-2 flex-wrap">
+                {questions.slice(0, answers.length).map((q, i) => {
+                  const ans = answers[i];
+                  const fluent = ans && (ans.stutterScore ?? 0) < 50;
+                  return (
+                    <div key={q.id} className={cn("h-2 w-8 rounded-full", fluent ? "bg-emerald-500" : "bg-amber-500")} title={`Q${i + 1}: ${q.skill ?? q.category}`} />
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2">Green = fluent · Amber = fluency noted</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
