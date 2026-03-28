@@ -236,6 +236,16 @@ router.post(
   }
 );
 
+router.delete("/interviews/:id", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = parseInt(req.params.id);
+  const [interview] = await db.select().from(interviewsTable)
+    .where(and(eq(interviewsTable.id, id), eq(interviewsTable.userId, req.user.id)));
+  if (!interview) { res.status(404).json({ error: "Interview not found" }); return; }
+  await db.delete(interviewsTable).where(eq(interviewsTable.id, id));
+  res.json({ success: true });
+});
+
 router.post("/interviews/:id/next-question", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = parseInt(req.params.id);
@@ -250,6 +260,20 @@ router.post("/interviews/:id/next-question", async (req, res) => {
 
   const questions = await db.select().from(interviewQuestionsTable).where(eq(interviewQuestionsTable.interviewId, id));
   const answers = await db.select().from(interviewAnswersTable).where(eq(interviewAnswersTable.interviewId, id));
+
+  if (questions.length === 0) {
+    const name = interview.candidateName ? `, ${interview.candidateName}` : "";
+    const introText = `Welcome to your interview${name}! Please take a moment to introduce yourself — tell me a bit about your background, what you've been working on recently, and what brings you here today.`;
+    const [introQ] = await db.insert(interviewQuestionsTable).values({
+      interviewId: id,
+      questionText: introText,
+      questionIndex: 0,
+      category: "english",
+      skill: null,
+    }).returning();
+    res.json({ isComplete: false, question: introQ });
+    return;
+  }
 
   let jobContext = "";
   let jobSkillsList: string[] = [];
