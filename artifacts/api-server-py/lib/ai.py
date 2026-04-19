@@ -4,13 +4,10 @@ import json
 from typing import Optional
 from openai import OpenAI
 
-REPLIT_AI_BASE_URL = "https://ai.replit.com"
-
 def get_openai_client() -> OpenAI:
-    return OpenAI(
-        api_key=os.environ.get("REPLIT_OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY", "")),
-        base_url=REPLIT_AI_BASE_URL if os.environ.get("REPLIT_OPENAI_API_KEY") else None,
-    )
+    base_url = os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL")
+    api_key = os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+    return OpenAI(api_key=api_key, base_url=base_url or None)
 
 
 def analyze_stutter(transcript: str) -> dict:
