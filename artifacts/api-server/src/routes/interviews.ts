@@ -8,6 +8,9 @@ import {
   interviewAnswersTable,
   interviewReportsTable,
   jobsTable,
+  scheduledInterviewsTable,
+  interviewCandidatesTable,
+  usersTable,
 } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { speechToText, textToSpeech } from "@workspace/integrations-openai-ai-server/audio";
@@ -145,13 +148,45 @@ router.get("/interviews", async (req, res) => {
 
 router.post("/interviews", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const { jobId, role, difficulty, interviewStyle } = req.body;
+  const { jobId, role, difficulty, interviewStyle, scheduledInterviewId, codingLanguage } = req.body;
+
+  let resolvedRole = role ?? "Software Engineer";
+  let resolvedDifficulty = difficulty ?? "Medium";
+  let resolvedInterviewStyle = interviewStyle ?? "Friendly";
+  let resolvedJobId = jobId ?? null;
+  let resolvedScheduledId = scheduledInterviewId ?? null;
+
+  if (scheduledInterviewId) {
+    const [si] = await db.select().from(scheduledInterviewsTable).where(eq(scheduledInterviewsTable.id, parseInt(scheduledInterviewId)));
+    if (!si) { res.status(404).json({ error: "Scheduled interview not found" }); return; }
+    const now = new Date();
+    if (now < new Date(si.startTime)) { res.status(403).json({ error: "Interview has not started yet" }); return; }
+    if (now > new Date(si.deadlineTime)) { res.status(403).json({ error: "Interview deadline has passed" }); return; }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user.id));
+    const userEmail = user?.email?.toLowerCase()?.trim() ?? "";
+    if (userEmail) {
+      const [candidate] = await db.select().from(interviewCandidatesTable).where(
+        and(eq(interviewCandidatesTable.scheduledInterviewId, si.id), eq(interviewCandidatesTable.email, userEmail))
+      );
+      if (!candidate) { res.status(403).json({ error: "You are not registered for this interview" }); return; }
+    }
+
+    resolvedRole = si.role;
+    resolvedDifficulty = si.difficulty;
+    resolvedInterviewStyle = si.interviewStyle;
+    resolvedJobId = si.jobId;
+    resolvedScheduledId = si.id;
+  }
+
   const [interview] = await db.insert(interviewsTable).values({
     userId: req.user.id,
-    jobId: jobId ?? null,
-    role: role ?? "Software Engineer",
-    difficulty: difficulty ?? "Medium",
-    interviewStyle: interviewStyle ?? "Friendly",
+    jobId: resolvedJobId,
+    scheduledInterviewId: resolvedScheduledId,
+    role: resolvedRole,
+    difficulty: resolvedDifficulty,
+    interviewStyle: resolvedInterviewStyle,
+    codingLanguage: codingLanguage ?? null,
     status: "pending",
   }).returning();
   res.status(201).json({ ...interview, jobTitle: null, totalQuestions: 0, answeredQuestions: 0 });
@@ -608,6 +643,60 @@ router.get("/interviews/:id/report", async (req, res) => {
   const [report] = await db.select().from(interviewReportsTable).where(eq(interviewReportsTable.interviewId, id));
   if (!report) { res.status(404).json({ error: "Report not available yet" }); return; }
   res.json(report);
+});
+
+router.get("/interviews/:id/coding-questions", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = parseInt(req.params.id);
+  const [interview] = await db.select().from(interviewsTable)
+    .where(and(eq(interviewsTable.id, id), eq(interviewsTable.userId, req.user.id)));
+  if (!interview) { res.status(404).json({ error: "Interview not found" }); return; }
+
+  let codingQuestionsCount = 1;
+  if (interview.scheduledInterviewId) {
+    const [si] = await db.select().from(scheduledInterviewsTable).where(eq(scheduledInterviewsTable.id, interview.scheduledInterviewId));
+    codingQuestionsCount = si?.codingQuestionsCount ?? 1;
+  }
+  if (codingQuestionsCount === 0) { res.json({ questions: [] }); return; }
+
+  const language = interview.codingLanguage || "Python";
+  const role = interview.role || "Software Engineer";
+  const difficulty = interview.difficulty || "Medium";
+
+  const prompt = `Generate ${codingQuestionsCount} coding interview question(s) for a ${role} candidate at ${difficulty} difficulty level, to be answered in ${language}.
+Each question should be practical and appropriate for the role.
+Return ONLY a JSON array of objects with fields: "title" (string), "description" (string, 2-4 sentences describing the problem clearly), "examples" (string, 1-2 input/output examples).
+Example: [{"title":"Two Sum","description":"Given an array of integers and a target, return indices of the two numbers that sum to the target. You may assume that each input has exactly one solution.","examples":"Input: nums=[2,7,11,15], target=9 → Output: [0,1]"}]`;
+
+  const resp = await openai.chat.completions.create({
+    model: "gpt-4o",
+    max_tokens: 800,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  let questions: any[] = [];
+  try {
+    const raw = resp.choices[0]?.message?.content ?? "[]";
+    questions = JSON.parse(raw.replace(/```json|```/g, "").trim());
+  } catch { questions = []; }
+
+  res.json({ questions, language });
+});
+
+router.post("/interviews/:id/coding-submit", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = parseInt(req.params.id);
+  const [interview] = await db.select().from(interviewsTable)
+    .where(and(eq(interviewsTable.id, id), eq(interviewsTable.userId, req.user.id)));
+  if (!interview) { res.status(404).json({ error: "Interview not found" }); return; }
+
+  const { answers } = req.body as { answers: { questionText: string; code: string }[] };
+  if (!answers || !Array.isArray(answers)) { res.status(400).json({ error: "answers array required" }); return; }
+
+  const language = interview.codingLanguage || "Python";
+  const codingAnswers = answers.map(a => ({ questionText: a.questionText, language, code: a.code }));
+  await db.update(interviewsTable).set({ codingAnswers } as any).where(eq(interviewsTable.id, id));
+  res.json({ success: true });
 });
 
 export default router;

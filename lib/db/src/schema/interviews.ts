@@ -5,6 +5,7 @@ import {
   integer,
   timestamp,
   jsonb,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -33,6 +34,15 @@ export const stutterItemSchema = z.object({
 });
 export type StutterItem = z.infer<typeof stutterItemSchema>;
 
+export const codingAnswerSchema = z.object({
+  questionText: z.string(),
+  language: z.string(),
+  code: z.string(),
+  score: z.number().optional(),
+  feedback: z.string().optional(),
+});
+export type CodingAnswer = z.infer<typeof codingAnswerSchema>;
+
 export const jobsTable = pgTable("jobs", {
   id: serial("id").primaryKey(),
   userId: text("user_id")
@@ -52,6 +62,35 @@ export const insertJobSchema = createInsertSchema(jobsTable).omit({
 export type InsertJob = z.infer<typeof insertJobSchema>;
 export type Job = typeof jobsTable.$inferSelect;
 
+export const scheduledInterviewsTable = pgTable("scheduled_interviews", {
+  id: serial("id").primaryKey(),
+  employerId: text("employer_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  jobId: integer("job_id").references(() => jobsTable.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  startTime: timestamp("start_time").notNull(),
+  deadlineTime: timestamp("deadline_time").notNull(),
+  codingQuestionsCount: integer("coding_questions_count").notNull().default(0),
+  role: text("role").notNull().default("Software Engineer"),
+  difficulty: text("difficulty").notNull().default("Medium"),
+  interviewStyle: text("interview_style").notNull().default("Friendly"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type ScheduledInterview = typeof scheduledInterviewsTable.$inferSelect;
+
+export const interviewCandidatesTable = pgTable("interview_candidates", {
+  id: serial("id").primaryKey(),
+  scheduledInterviewId: integer("scheduled_interview_id")
+    .notNull()
+    .references(() => scheduledInterviewsTable.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+});
+
+export type InterviewCandidate = typeof interviewCandidatesTable.$inferSelect;
+
 export const interviewsTable = pgTable("interviews", {
   id: serial("id").primaryKey(),
   userId: text("user_id")
@@ -60,6 +99,10 @@ export const interviewsTable = pgTable("interviews", {
   jobId: integer("job_id").references(() => jobsTable.id, {
     onDelete: "set null",
   }),
+  scheduledInterviewId: integer("scheduled_interview_id").references(
+    () => scheduledInterviewsTable.id,
+    { onDelete: "set null" }
+  ),
   role: text("role").notNull().default("Software Engineer"),
   difficulty: text("difficulty").notNull().default("Medium"),
   interviewStyle: text("interview_style").notNull().default("Friendly"),
@@ -70,6 +113,8 @@ export const interviewsTable = pgTable("interviews", {
     .default("pending"),
   candidateName: text("candidate_name"),
   resumeText: text("resume_text"),
+  codingLanguage: text("coding_language"),
+  codingAnswers: jsonb("coding_answers").$type<CodingAnswer[]>().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

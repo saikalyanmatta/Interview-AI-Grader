@@ -9,6 +9,11 @@ import ActiveInterview from "@/pages/ActiveInterview";
 import InterviewReport from "@/pages/InterviewReport";
 import EmployerDashboard from "@/pages/EmployerDashboard";
 import CreateJob from "@/pages/CreateJob";
+import ScheduleInterview from "@/pages/ScheduleInterview";
+import ScheduledInterviewCandidates from "@/pages/ScheduledInterviewCandidates";
+import ScheduledInterviewResults from "@/pages/ScheduledInterviewResults";
+import InterviewAccess from "@/pages/InterviewAccess";
+import Profile from "@/pages/Profile";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@workspace/replit-auth-web";
 import { Loader2 } from "lucide-react";
@@ -22,7 +27,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// Auth Guard Wrapper
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading, login } = useAuth();
 
@@ -31,13 +35,11 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }
 
   if (!isAuthenticated) {
-    // In a real app, you might want to auto-redirect or show a message.
-    // For this flow, we'll render a centered login prompt.
     return (
       <div className="flex flex-col h-[60vh] items-center justify-center gap-4 text-center max-w-md mx-auto">
         <h2 className="text-2xl font-bold font-display">Authentication Required</h2>
         <p className="text-muted-foreground">Please sign in to access this page.</p>
-        <button 
+        <button
           onClick={login}
           className="mt-4 px-6 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary/90 transition-colors"
         >
@@ -60,6 +62,11 @@ function Router() {
       <Route path="/interview/:id/report"><ProtectedRoute component={InterviewReport} /></Route>
       <Route path="/employer"><ProtectedRoute component={EmployerDashboard} /></Route>
       <Route path="/employer/jobs/new"><ProtectedRoute component={CreateJob} /></Route>
+      <Route path="/employer/schedule"><ProtectedRoute component={ScheduleInterview} /></Route>
+      <Route path="/employer/scheduled/:id/candidates"><ProtectedRoute component={ScheduledInterviewCandidates} /></Route>
+      <Route path="/employer/scheduled/:id/results"><ProtectedRoute component={ScheduledInterviewResults} /></Route>
+      <Route path="/interview-access/:id" component={InterviewAccess} />
+      <Route path="/profile"><ProtectedRoute component={Profile} /></Route>
       <Route component={NotFound} />
     </Switch>
   );

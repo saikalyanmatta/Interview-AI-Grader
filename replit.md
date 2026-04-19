@@ -2,7 +2,7 @@
 
 ## Overview
 
-Full-stack AI Interviewer platform with two modes: **Candidate** (voice-based interview practice) and **Employer** (define job requirements, get hire/no-hire recommendations).
+Full-stack AI Interviewer platform with two modes: **Candidate** (voice-based interview practice with anti-cheat) and **Employer** (schedule interviews, manage candidates, view results with XLSX export).
 
 ## Stack
 
@@ -52,27 +52,51 @@ lib/
 
 ### Employer Mode
 1. Create job profiles with title, role, description, skills with required proficiency (1-10), and skill weightage (0-100)
-2. Candidates can select a job profile when starting an interview
-3. Grading report shows whether candidate meets each skill requirement
+2. Schedule interviews: set start time, deadline, number of coding questions, link candidates by email
+3. Candidates can enter their email at the interview access link to validate eligibility
+4. Employer views results with sorting by score and XLSX export (4 sheets: Strongly Hire, Hire, No Hire, Not Attempted)
+
+### Anti-Cheat
+- Fullscreen enforced at interview start; exit = warning + logged
+- Tab switch / window blur logged and shown in malpractice alerts
+- Ctrl+T, Ctrl+W, Ctrl+N keyboard shortcuts blocked during interview
+- Right-click disabled during active interview session
+
+### Coding Questions
+- Employers can set coding question count per scheduled interview (0–5)
+- AI generates role/difficulty-appropriate questions in candidate's chosen language
+- Code written in a textarea; submitted with the final interview for review
 
 ## API Endpoints
 
 - `GET /api/auth/user` — current auth state
 - `GET /api/jobs` / `POST /api/jobs` — job profile CRUD
-- `GET /api/interviews` / `POST /api/interviews` — interview management
+- `GET /api/interviews` / `POST /api/interviews` — interview management (accepts scheduledInterviewId)
 - `POST /api/interviews/:id/resume` — upload resume text
 - `POST /api/interviews/:id/start` — generate 8 AI questions
 - `GET /api/interviews/:id/questions/:qId/audio` — TTS audio (base64 mp3)
 - `POST /api/interviews/:id/answers` — submit audio answer (STT transcription)
 - `POST /api/interviews/:id/complete` — grade interview, generate report
 - `GET /api/interviews/:id/report` — fetch completed report
+- `GET /api/interviews/:id/coding-questions` — generate coding questions for this interview
+- `POST /api/interviews/:id/coding-submit` — save candidate coding answers
+- `GET /api/scheduled-interviews` / `POST /api/scheduled-interviews` — employer scheduled interview CRUD
+- `GET|DELETE /api/scheduled-interviews/:id` — single scheduled interview management
+- `POST /api/scheduled-interviews/:id/candidates` — add candidates by pasted email list
+- `DELETE /api/scheduled-interviews/:id/candidates/:email` — remove a candidate
+- `GET /api/scheduled-interviews/:id/results` — paginated results with sorting
+- `GET /api/scheduled-interviews/:id/results/export` — XLSX download (4 sheets)
+- `GET /api/profile/me` / `PATCH /api/profile/me` — profile management
+- `GET /api/profile/:userId/public` — public profile (name, bio, avg score, resume)
 
 ## Database Schema
 
-- `users` — from Replit Auth (id, email, firstName, lastName, profileImageUrl)
+- `users` — from Replit Auth + extended: phone, bio, publicResume, customProfileImage, isPhoneVerified
 - `sessions` — OIDC session storage
 - `jobs` — employer job profiles (title, role, description, skills JSON with required level and weight)
-- `interviews` — interview sessions (userId, jobId, role, difficulty, interviewStyle, status, resumeText)
+- `scheduled_interviews` — employer-scheduled interviews (jobId, role, difficulty, style, startTime, deadlineTime, codingQuestionsCount)
+- `interview_candidates` — allowed candidate emails per scheduled interview
+- `interviews` — interview sessions (userId, jobId, scheduledInterviewId, role, difficulty, interviewStyle, codingLanguage, codingAnswers, status, resumeText)
 - `interview_questions` — generated questions per interview
 - `interview_answers` — transcribed answers per question
 - `interview_reports` — grading results (englishScore, behavioralScore, communicationAnalysis, answerQualityBreakdown, skillScores, recommendation)
