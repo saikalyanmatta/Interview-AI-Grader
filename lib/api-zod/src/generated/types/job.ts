@@ -5,11 +5,13 @@
  * AI Interviewer API
  * OpenAPI spec version: 0.1.0
  */
+import type { JobRole } from "./jobRole";
 import type { SkillRequirement } from "./skillRequirement";
 
 export interface Job {
   id: number;
   title: string;
+  role?: JobRole;
   description: string;
   skills: SkillRequirement[];
   createdAt: Date;

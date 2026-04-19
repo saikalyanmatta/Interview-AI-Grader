@@ -13,6 +13,7 @@ import { usersTable } from "./auth";
 export const skillRequirementSchema = z.object({
   name: z.string(),
   requiredLevel: z.number().min(1).max(10),
+  weight: z.number().min(0).max(100).optional(),
 });
 export type SkillRequirement = z.infer<typeof skillRequirementSchema>;
 
@@ -38,6 +39,7 @@ export const jobsTable = pgTable("jobs", {
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
+  role: text("role").notNull().default("Software Engineer"),
   description: text("description").notNull(),
   skills: jsonb("skills").$type<SkillRequirement[]>().notNull().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -58,6 +60,9 @@ export const interviewsTable = pgTable("interviews", {
   jobId: integer("job_id").references(() => jobsTable.id, {
     onDelete: "set null",
   }),
+  role: text("role").notNull().default("Software Engineer"),
+  difficulty: text("difficulty").notNull().default("Medium"),
+  interviewStyle: text("interview_style").notNull().default("Friendly"),
   status: text("status", {
     enum: ["pending", "in_progress", "completed"],
   })
@@ -120,6 +125,10 @@ export const interviewReportsTable = pgTable("interview_reports", {
   overallScore: integer("overall_score").notNull(),
   confidenceScore: integer("confidence_score").default(70),
   confidenceNotes: text("confidence_notes").default(""),
+  behavioralScore: integer("behavioral_score").default(70),
+  behavioralAnalysis: jsonb("behavioral_analysis").$type<Record<string, unknown>>().notNull().default({}),
+  communicationAnalysis: jsonb("communication_analysis").$type<Record<string, unknown>>().notNull().default({}),
+  answerQualityBreakdown: jsonb("answer_quality_breakdown").$type<Record<string, unknown>[]>().notNull().default([]),
   stutterAnalysis: jsonb("stutter_analysis").$type<StutterItem[]>().notNull().default([]),
   skillScores: jsonb("skill_scores").$type<SkillScore[]>().notNull().default([]),
   recommendation: text("recommendation", {

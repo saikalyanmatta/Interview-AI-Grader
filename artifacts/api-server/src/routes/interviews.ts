@@ -50,6 +50,34 @@ function analyzeStutter(transcript: string): { stutterScore: number; stutterNote
   return { stutterScore: score, stutterNotes: notes.join("; ") || "Speech patterns normal" };
 }
 
+function analyzeCommunication(transcripts: string[]) {
+  const joined = transcripts.join(" ").trim();
+  const clean = joined.toLowerCase().replace(/[.,?!;:'"]/g, "");
+  const words = clean.split(/\s+/).filter(Boolean);
+  const fillerWords = ["um", "uh", "er", "ah", "hmm", "like", "basically", "literally", "actually", "right", "so", "okay"];
+  const fillerCounts = fillerWords.reduce<Record<string, number>>((acc, word) => {
+    const count = words.filter((w) => w === word).length;
+    if (count > 0) acc[word] = count;
+    return acc;
+  }, {});
+  const totalFillers = Object.values(fillerCounts).reduce((a, b) => a + b, 0);
+  const sentences = joined.split(/[.!?]+/).map((s) => s.trim()).filter(Boolean);
+  const averageSentenceLength = sentences.length > 0 ? Math.round(words.length / sentences.length) : 0;
+  const fillerRate = words.length > 0 ? totalFillers / words.length : 0;
+  const clarityScore = Math.max(35, Math.min(100, Math.round(92 - fillerRate * 250 - Math.max(0, averageSentenceLength - 28) * 1.5)));
+  const sentenceStructureScore = Math.max(35, Math.min(100, Math.round(88 - Math.abs(averageSentenceLength - 18) * 1.4)));
+  return {
+    clarityScore,
+    fillerWords: fillerCounts,
+    totalFillers,
+    sentenceStructureScore,
+    averageSentenceLength,
+    summary: totalFillers > 8
+      ? "Reduce filler words and pause deliberately before answering."
+      : "Communication is generally clear; keep answers concise and structured.",
+  };
+}
+
 async function analyzeFacialFrames(
   frames: string[]
 ): Promise<{ confidenceScore: number; confidenceNotes: string }> {
@@ -117,9 +145,14 @@ router.get("/interviews", async (req, res) => {
 
 router.post("/interviews", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const { jobId } = req.body;
+  const { jobId, role, difficulty, interviewStyle } = req.body;
   const [interview] = await db.insert(interviewsTable).values({
-    userId: req.user.id, jobId: jobId ?? null, status: "pending",
+    userId: req.user.id,
+    jobId: jobId ?? null,
+    role: role ?? "Software Engineer",
+    difficulty: difficulty ?? "Medium",
+    interviewStyle: interviewStyle ?? "Friendly",
+    status: "pending",
   }).returning();
   res.status(201).json({ ...interview, jobTitle: null, totalQuestions: 0, answeredQuestions: 0 });
 });
@@ -277,11 +310,13 @@ router.post("/interviews/:id/next-question", async (req, res) => {
 
   let jobContext = "";
   let jobSkillsList: string[] = [];
+  let employerRole = "";
   if (interview.jobId) {
     const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, interview.jobId));
     if (job) {
-      jobContext = `Target position: ${job.title}. ${job.description}`;
-      jobSkillsList = job.skills.map((s) => `${s.name} (required: ${s.requiredLevel}/10)`);
+      employerRole = job.role;
+      jobContext = `Target position: ${job.title}. Role family: ${job.role}. ${job.description}`;
+      jobSkillsList = job.skills.map((s) => `${s.name} (required: ${s.requiredLevel}/10, weight: ${s.weight ?? 50}%)`);
     }
   }
 
@@ -291,10 +326,31 @@ router.post("/interviews/:id/next-question", async (req, res) => {
     return `Q${q.questionIndex + 1} [${q.category}${q.skill ? ` - ${q.skill}` : ""}]: ${q.questionText}\nA: ${ans?.transcript ?? "(unanswered)"}${stutterInfo}`;
   }).join("\n\n");
 
+  const role = employerRole || interview.role || "Software Engineer";
+  const difficulty = interview.difficulty || "Medium";
+  const style = interview.interviewStyle || "Friendly";
+  const styleGuidance = {
+    Friendly: "warm, encouraging, conversational, with supportive clarifying prompts",
+    Strict: "direct, high-standard, concise, and probing when answers are vague",
+    "Technical Deep Dive": "deeply technical, precise, and willing to ask detailed implementation follow-ups",
+  }[style] ?? "warm and professional";
+  const roleGuidance = {
+    "Software Engineer": "coding, debugging, system design, DSA, architecture tradeoffs, and implementation clarity",
+    "Product Manager": "product sense, prioritization, metrics, stakeholder tradeoffs, experimentation, and launch judgment",
+    "HR Interview": "behavioral judgment, collaboration, conflict resolution, ownership, communication, and culture fit",
+  }[role] ?? "role-relevant skills";
+  const maxQuestions = difficulty === "Hard" ? 20 : difficulty === "Easy" ? 10 : 15;
+
   const prompt = `You are an adaptive AI interviewer. Decide the NEXT interview question or whether to end the interview.
 
 Candidate resume:
 ${interview.resumeText ?? "No resume provided"}
+
+Interview configuration:
+- Role: ${role}
+- Difficulty: ${difficulty}
+- Interview style: ${style} (${styleGuidance})
+- Role focus: ${roleGuidance}
 
 ${jobContext ? `Job context: ${jobContext}` : ""}
 ${jobSkillsList.length > 0 ? `Required skills: ${jobSkillsList.join(", ")}` : ""}
@@ -304,10 +360,13 @@ ${historyLines || "(None yet — this is the first question)"}
 
 Rules for adaptive interviewing:
 - Cover English/communication fluency (minimum 2 questions, labeled category: "english")
-- Cover behavioral scenarios (minimum 2 questions, labeled category: "behavioral")  
-- Cover EACH major technical skill from the resume with at least 2-3 questions (category: "technical")
-- Ask follow-up questions when answers show high stutter score (>50) OR the answer is very short/off-topic
-- Maximum 20 questions total
+- Cover behavioral and situational scenarios with STAR method prompts: Situation, Task, Action, Result (minimum 2 questions, labeled category: "behavioral")
+- For Software Engineer, include coding, DSA, system design, and technical tradeoff questions
+- For Product Manager, include product thinking, prioritization, metrics, and stakeholder scenarios
+- For HR Interview, emphasize behavioral scenarios, emotional intelligence, conflict resolution, and culture fit
+- Reference previous answers directly when useful, and ask clarifying follow-up questions such as "Can you elaborate on that?" when answers are incomplete
+- Ask follow-up questions when answers show high stutter score (>50), miss STAR elements, are very short, vague, or off-topic
+- Maximum ${maxQuestions} questions total
 - Minimum 6 questions before completing
 - Complete when: all major skills covered, both English and behavioral minimums met, and no critical gaps remain
 
@@ -420,10 +479,12 @@ router.post("/interviews/:id/complete", async (req, res) => {
   const questions = await db.select().from(interviewQuestionsTable).where(eq(interviewQuestionsTable.interviewId, id));
   const answers = await db.select().from(interviewAnswersTable).where(eq(interviewAnswersTable.interviewId, id));
 
-  let jobSkills: Array<{ name: string; requiredLevel: number }> = [];
+  let jobSkills: Array<{ name: string; requiredLevel: number; weight?: number }> = [];
+  let jobRole: string | null = null;
   if (interview.jobId) {
     const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, interview.jobId));
     jobSkills = job?.skills ?? [];
+    jobRole = job?.role ?? null;
   }
 
   const qa = questions.map((q) => {
@@ -437,6 +498,7 @@ router.post("/interviews/:id/complete", async (req, res) => {
     ? Math.round(confidenceScores.reduce((a, b) => a + b, 0) / confidenceScores.length)
     : 70;
   const confidenceNotes = answers.map((a) => a.confidenceNotes).filter(Boolean).join(". ");
+  const communicationAnalysis = analyzeCommunication(answers.map((a) => a.transcript));
 
   const skillGroups: Record<string, number[]> = {};
   for (const q of questions) {
@@ -456,22 +518,36 @@ router.post("/interviews/:id/complete", async (req, res) => {
       : `Adequate fluency on ${skill} topic`,
   }));
 
+  const role = jobRole || interview.role || "Software Engineer";
+  const difficulty = interview.difficulty || "Medium";
+  const style = interview.interviewStyle || "Friendly";
+
   const gradingPrompt = `You are an expert interview evaluator. Analyze this complete interview and grade the candidate.
 
 Interview transcript with fluency metrics:
 ${qa}
 
-${jobSkills.length > 0 ? `Required job skills: ${jobSkills.map((s) => `${s.name} (required: ${s.requiredLevel}/10)`).join(", ")}` : ""}
+Interview configuration: ${role} role, ${difficulty} difficulty, ${style} interviewer style.
+${jobSkills.length > 0 ? `Required job skills: ${jobSkills.map((s) => `${s.name} (required: ${s.requiredLevel}/10, weight: ${s.weight ?? 50}%)`).join(", ")}` : ""}
 
 Candidate confidence score from facial analysis: ${avgConfidence}/100
 ${confidenceNotes ? `Confidence observations: ${confidenceNotes}` : ""}
+
+Measured communication metrics:
+${JSON.stringify(communicationAnalysis)}
 
 Evaluate the candidate and return ONLY a JSON object:
 {
   "englishScore": <0-100 for English fluency, grammar, articulation>,
   "englishFeedback": "<specific feedback including stutter patterns if any>",
+  "behavioralScore": <0-100 for STAR completeness, problem solving, emotional intelligence>,
+  "behavioralAnalysis": {"starCompleteness":"<specific assessment>", "missingElements":["Situation|Task|Action|Result"], "problemSolving":"<assessment>", "emotionalIntelligence":"<assessment>", "suggestions":["<specific improvement>"]},
+  "communicationAnalysis": {"clarityScore": <0-100>, "fillerWords": {"um": 0}, "sentenceStructureScore": <0-100>, "summary": "<clear explanation>"},
   "skillScores": [
     {"skill": "<skill>", "score": <0-100>, "feedback": "<specific feedback noting any fluency issues during this topic>", "meetRequirement": <true|false|null>}
+  ],
+  "answerQualityBreakdown": [
+    {"question": "<question>", "yourAnswer": "<candidate answer>", "rating": <0-100>, "suggestedBetterAnswer": "<improved concise answer using role-appropriate structure>"}
   ],
   "overallScore": <0-100 weighted average>,
   "recommendation": "hire|no_hire|maybe",
@@ -491,6 +567,10 @@ Evaluate the candidate and return ONLY a JSON object:
   } catch {
     grading = {
       englishScore: 70, englishFeedback: "Unable to evaluate.",
+      behavioralScore: 70,
+      behavioralAnalysis: { missingElements: [], suggestions: ["Use Situation, Task, Action, Result in behavioral answers."] },
+      communicationAnalysis,
+      answerQualityBreakdown: [],
       skillScores: [], overallScore: 70, recommendation: "maybe",
       feedback: "Evaluation could not be completed.",
     };
@@ -505,6 +585,10 @@ Evaluate the candidate and return ONLY a JSON object:
     overallScore: grading.overallScore,
     confidenceScore: avgConfidence,
     confidenceNotes: confidenceNotes || grading.feedback,
+    behavioralScore: grading.behavioralScore ?? 70,
+    behavioralAnalysis: grading.behavioralAnalysis ?? {},
+    communicationAnalysis: { ...communicationAnalysis, ...(grading.communicationAnalysis ?? {}) },
+    answerQualityBreakdown: grading.answerQualityBreakdown ?? [],
     stutterAnalysis,
     skillScores: grading.skillScores,
     recommendation: grading.recommendation,

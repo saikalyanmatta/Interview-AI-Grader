@@ -5,6 +5,9 @@
  * AI Interviewer API
  * OpenAPI spec version: 0.1.0
  */
+import type { InterviewDifficulty } from "./interviewDifficulty";
+import type { InterviewInterviewStyle } from "./interviewInterviewStyle";
+import type { InterviewRole } from "./interviewRole";
 import type { InterviewStatus } from "./interviewStatus";
 
 export interface Interview {
@@ -13,6 +16,9 @@ export interface Interview {
   jobId?: number | null;
   /** @nullable */
   jobTitle?: string | null;
+  role?: InterviewRole;
+  difficulty?: InterviewDifficulty;
+  interviewStyle?: InterviewInterviewStyle;
   status: InterviewStatus;
   /** @nullable */
   candidateName?: string | null;

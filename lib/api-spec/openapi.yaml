@@ -541,6 +541,11 @@ components:
           minimum: 1
           maximum: 10
           description: Required proficiency level out of 10
+        weight:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Employer-defined importance weight for this skill
 
     Job:
       type: object
@@ -550,6 +555,9 @@ components:
           type: integer
         title:
           type: string
+        role:
+          type: string
+          enum: [Software Engineer, Product Manager, HR Interview]
         description:
           type: string
         skills:
@@ -566,6 +574,9 @@ components:
       properties:
         title:
           type: string
+        role:
+          type: string
+          enum: [Software Engineer, Product Manager, HR Interview]
         description:
           type: string
         skills:
@@ -583,6 +594,15 @@ components:
           type: [integer, 'null']
         jobTitle:
           type: [string, 'null']
+        role:
+          type: string
+          enum: [Software Engineer, Product Manager, HR Interview]
+        difficulty:
+          type: string
+          enum: [Easy, Medium, Hard]
+        interviewStyle:
+          type: string
+          enum: [Friendly, Strict, Technical Deep Dive]
         status:
           type: string
           enum: [pending, in_progress, completed]
@@ -636,6 +656,15 @@ components:
           type: [integer, 'null']
         jobTitle:
           type: [string, 'null']
+        role:
+          type: string
+          enum: [Software Engineer, Product Manager, HR Interview]
+        difficulty:
+          type: string
+          enum: [Easy, Medium, Hard]
+        interviewStyle:
+          type: string
+          enum: [Friendly, Strict, Technical Deep Dive]
         status:
           type: string
           enum: [pending, in_progress, completed]
@@ -665,6 +694,15 @@ components:
         jobId:
           type: integer
           description: Optional job profile ID for employer-defined interviews
+        role:
+          type: string
+          enum: [Software Engineer, Product Manager, HR Interview]
+        difficulty:
+          type: string
+          enum: [Easy, Medium, Hard]
+        interviewStyle:
+          type: string
+          enum: [Friendly, Strict, Technical Deep Dive]
 
     UploadResumeBody:
       type: object
@@ -742,6 +780,66 @@ components:
         meetRequirement:
           type: [boolean, 'null']
 
+    CommunicationAnalysis:
+      type: object
+      properties:
+        fillerWords:
+          type: object
+          additionalProperties:
+            type: integer
+        fillerWordCount:
+          type: integer
+        clarityScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        sentenceStructureScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        speakingPace:
+          type: string
+        feedback:
+          type: string
+
+    BehavioralAnalysis:
+      type: object
+      properties:
+        starScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        situation:
+          type: string
+        task:
+          type: string
+        action:
+          type: string
+        result:
+          type: string
+        feedback:
+          type: string
+
+    AnswerQualityBreakdown:
+      type: object
+      properties:
+        questionId:
+          type: integer
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        strengths:
+          type: array
+          items:
+            type: string
+        improvementAreas:
+          type: array
+          items:
+            type: string
+        suggestedAnswer:
+          type: string
+
     InterviewReport:
       type: object
       required: [id, interviewId, englishScore, overallScore, recommendation, skillScores, feedback, createdAt]
@@ -757,6 +855,18 @@ components:
           description: English speaking ability score out of 100
         englishFeedback:
           type: string
+        behavioralScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        behavioralAnalysis:
+          $ref: "#/components/schemas/BehavioralAnalysis"
+        communicationAnalysis:
+          $ref: "#/components/schemas/CommunicationAnalysis"
+        answerQualityBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnswerQualityBreakdown"
         overallScore:
           type: integer
           minimum: 0

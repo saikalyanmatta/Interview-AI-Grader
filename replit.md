@@ -25,6 +25,7 @@ Full-stack AI Interviewer platform with two modes: **Candidate** (voice-based in
 artifacts/
   api-server/         Express API — auth, interviews, jobs, audio
   ai-interviewer/     React + Vite frontend (previewPath: /)
+  interview-coach/    Placeholder scaffold moved to /interview-coach/ during feature work
   mockup-sandbox/     Design sandbox (unused in prod)
 lib/
   api-spec/           OpenAPI spec + Orval codegen config
@@ -42,14 +43,15 @@ lib/
 1. Sign in with Google (Replit Auth)
 2. Upload/paste resume text → skills extracted via AI
 3. Optionally select an employer-defined job profile
-4. AI generates 8 personalized interview questions (2 English, 4 Technical, 2 Behavioral)
-5. Each question is spoken aloud via TTS (OpenAI alloy voice)
-6. Candidate records answer via microphone → STT transcription
-7. After all questions → AI grades English fluency + each skill (0-100)
-8. Detailed report with recommendation (hire/no_hire/maybe)
+4. Select interview role, difficulty, and style (Friendly, Strict, Technical Deep Dive)
+5. AI generates adaptive personalized questions with role-aware focus and contextual follow-ups
+6. Each question is spoken aloud via TTS (OpenAI alloy voice)
+7. Candidate records answer via microphone → STT transcription
+8. After all questions → AI grades English fluency, behavioral STAR structure, communication clarity, confidence, and each skill (0-100)
+9. Detailed report with answer-level suggested better responses and recommendation (hire/no_hire/maybe)
 
 ### Employer Mode
-1. Create job profiles with title, description, skills with required proficiency (1-10)
+1. Create job profiles with title, role, description, skills with required proficiency (1-10), and skill weightage (0-100)
 2. Candidates can select a job profile when starting an interview
 3. Grading report shows whether candidate meets each skill requirement
 
@@ -69,11 +71,11 @@ lib/
 
 - `users` — from Replit Auth (id, email, firstName, lastName, profileImageUrl)
 - `sessions` — OIDC session storage
-- `jobs` — employer job profiles (title, description, skills JSON)
-- `interviews` — interview sessions (userId, jobId, status, resumeText)
+- `jobs` — employer job profiles (title, role, description, skills JSON with required level and weight)
+- `interviews` — interview sessions (userId, jobId, role, difficulty, interviewStyle, status, resumeText)
 - `interview_questions` — generated questions per interview
 - `interview_answers` — transcribed answers per question
-- `interview_reports` — grading results (englishScore, skillScores, recommendation)
+- `interview_reports` — grading results (englishScore, behavioralScore, communicationAnalysis, answerQualityBreakdown, skillScores, recommendation)
 
 ## Environment Variables
 

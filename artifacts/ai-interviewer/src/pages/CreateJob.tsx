@@ -15,13 +15,14 @@ export default function CreateJob() {
   const createMutation = useCreateJob();
 
   const [title, setTitle] = useState("");
+  const [role, setRole] = useState("Software Engineer");
   const [description, setDescription] = useState("");
-  const [skills, setSkills] = useState<{name: string, requiredLevel: number}[]>([
-    { name: "", requiredLevel: 5 }
+  const [skills, setSkills] = useState<{name: string, requiredLevel: number, weight: number}[]>([
+    { name: "", requiredLevel: 5, weight: 50 }
   ]);
 
   const handleAddSkill = () => {
-    setSkills([...skills, { name: "", requiredLevel: 5 }]);
+    setSkills([...skills, { name: "", requiredLevel: 5, weight: 50 }]);
   };
 
   const handleRemoveSkill = (index: number) => {
@@ -44,7 +45,7 @@ export default function CreateJob() {
 
     try {
       await createMutation.mutateAsync({
-        data: { title, description, skills: validSkills }
+        data: { title, role, description, skills: validSkills } as any
       });
       toast({ title: "Job profile created" });
       setLocation("/employer");
@@ -78,6 +79,22 @@ export default function CreateJob() {
                   onChange={(e) => setTitle(e.target.value)}
                   autoFocus
                 />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block text-foreground/90">Role Selection</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {["Software Engineer", "Product Manager", "HR Interview"].map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setRole(option)}
+                      className={`rounded-xl border px-4 py-3 text-sm font-medium transition-all ${role === option ? "border-primary bg-primary/10 text-primary" : "border-white/10 bg-black/20 text-muted-foreground hover:border-white/30"}`}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
               </div>
               
               <div>
@@ -128,6 +145,19 @@ export default function CreateJob() {
                         min="1" max="10" 
                         value={skill.requiredLevel}
                         onChange={(e) => handleSkillChange(index, "requiredLevel", parseInt(e.target.value))}
+                        className="w-full accent-primary"
+                      />
+                    </div>
+                    <div className="w-32 flex flex-col gap-1">
+                      <div className="flex justify-between text-xs text-muted-foreground px-1">
+                        <span>Weight</span>
+                        <span>{skill.weight}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0" max="100"
+                        value={skill.weight}
+                        onChange={(e) => handleSkillChange(index, "weight", parseInt(e.target.value))}
                         className="w-full accent-primary"
                       />
                     </div>

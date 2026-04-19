@@ -21,7 +21,7 @@ router.post("/jobs", async (req, res) => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const { title, description, skills } = req.body;
+  const { title, role, description, skills } = req.body;
   if (!title || !description) {
     res.status(400).json({ error: "title and description are required" });
     return;
@@ -31,6 +31,7 @@ router.post("/jobs", async (req, res) => {
     .values({
       userId: req.user.id,
       title,
+      role: role ?? "Software Engineer",
       description,
       skills: skills ?? [],
     })
@@ -61,10 +62,10 @@ router.put("/jobs/:id", async (req, res) => {
     return;
   }
   const id = parseInt(req.params.id);
-  const { title, description, skills } = req.body;
+  const { title, role, description, skills } = req.body;
   const [job] = await db
     .update(jobsTable)
-    .set({ title, description, skills: skills ?? [] })
+    .set({ title, role: role ?? "Software Engineer", description, skills: skills ?? [] })
     .where(and(eq(jobsTable.id, id), eq(jobsTable.userId, req.user.id)))
     .returning();
   if (!job) {

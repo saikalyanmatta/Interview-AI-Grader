@@ -15,4 +15,10 @@ export interface SkillRequirement {
    * @maximum 10
    */
   requiredLevel: number;
+  /**
+   * Employer-defined importance weight for this skill
+   * @minimum 0
+   * @maximum 100
+   */
+  weight?: number;
 }

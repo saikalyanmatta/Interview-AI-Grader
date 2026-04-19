@@ -5,6 +5,9 @@
  * AI Interviewer API
  * OpenAPI spec version: 0.1.0
  */
+import type { AnswerQualityBreakdown } from "./answerQualityBreakdown";
+import type { BehavioralAnalysis } from "./behavioralAnalysis";
+import type { CommunicationAnalysis } from "./communicationAnalysis";
 import type { InterviewReportRecommendation } from "./interviewReportRecommendation";
 import type { SkillScore } from "./skillScore";
 
@@ -18,6 +21,14 @@ export interface InterviewReport {
    */
   englishScore: number;
   englishFeedback?: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  behavioralScore?: number;
+  behavioralAnalysis?: BehavioralAnalysis;
+  communicationAnalysis?: CommunicationAnalysis;
+  answerQualityBreakdown?: AnswerQualityBreakdown[];
   /**
    * @minimum 0
    * @maximum 100

@@ -5,8 +5,14 @@
  * AI Interviewer API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateInterviewBodyDifficulty } from "./createInterviewBodyDifficulty";
+import type { CreateInterviewBodyInterviewStyle } from "./createInterviewBodyInterviewStyle";
+import type { CreateInterviewBodyRole } from "./createInterviewBodyRole";
 
 export interface CreateInterviewBody {
   /** Optional job profile ID for employer-defined interviews */
   jobId?: number;
+  role?: CreateInterviewBodyRole;
+  difficulty?: CreateInterviewBodyDifficulty;
+  interviewStyle?: CreateInterviewBodyInterviewStyle;
 }

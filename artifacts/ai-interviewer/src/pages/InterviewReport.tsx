@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, TrendingUp, AlertTriangle, CheckCircle, ChevronLeft, BrainCircuit, Eye, MessageSquare, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,10 @@ export default function InterviewReport() {
   const confidenceScore = (report as any).confidenceScore ?? 70;
   const confidenceNotes = (report as any).confidenceNotes ?? "";
   const stutterAnalysis: Array<{ skill: string; avgStutterScore: number; questionsAsked: number; notes: string }> = (report as any).stutterAnalysis ?? [];
+  const behavioralScore = (report as any).behavioralScore ?? 70;
+  const behavioralAnalysis = (report as any).behavioralAnalysis ?? {};
+  const communicationAnalysis = (report as any).communicationAnalysis ?? {};
+  const answerQualityBreakdown: Array<{ question: string; yourAnswer: string; rating: number; suggestedBetterAnswer: string }> = (report as any).answerQualityBreakdown ?? [];
 
   const scoreCircle = (value: number, label: string, color: string) => {
     const r = 40;
@@ -94,6 +99,7 @@ export default function InterviewReport() {
             <div className="flex flex-wrap items-center gap-10">
               {scoreCircle(report.overallScore, "Overall", "#8b5cf6")}
               {scoreCircle(report.englishScore, "English", "#06b6d4")}
+              {scoreCircle(behavioralScore, "Behavioral", "#f59e0b")}
               {scoreCircle(confidenceScore, "Confidence", "#10b981")}
             </div>
           </CardContent>
@@ -127,6 +133,58 @@ export default function InterviewReport() {
           </CardContent>
         </Card>
       </div>
+
+      <Tabs defaultValue="overview" className="glass-panel rounded-3xl border border-white/5 p-2">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 bg-black/30">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="communication">Communication</TabsTrigger>
+          <TabsTrigger value="behavioral">Behavioral</TabsTrigger>
+          <TabsTrigger value="suggestions">Suggestions</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview" className="p-4">
+          <p className="text-sm text-muted-foreground leading-relaxed">{report.feedback}</p>
+        </TabsContent>
+        <TabsContent value="communication" className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="bg-black/20 border-white/5"><CardContent className="p-5"><div className="text-3xl font-bold text-cyan-400">{communicationAnalysis.clarityScore ?? report.englishScore}</div><p className="text-xs text-muted-foreground mt-1">Clarity score</p></CardContent></Card>
+            <Card className="bg-black/20 border-white/5"><CardContent className="p-5"><div className="text-3xl font-bold text-amber-400">{communicationAnalysis.totalFillers ?? 0}</div><p className="text-xs text-muted-foreground mt-1">Detected filler words</p></CardContent></Card>
+            <Card className="bg-black/20 border-white/5"><CardContent className="p-5"><div className="text-3xl font-bold text-violet-400">{communicationAnalysis.sentenceStructureScore ?? 70}</div><p className="text-xs text-muted-foreground mt-1">Sentence structure</p></CardContent></Card>
+          </div>
+          <p className="text-sm text-muted-foreground mt-4">{communicationAnalysis.summary ?? report.englishFeedback}</p>
+        </TabsContent>
+        <TabsContent value="behavioral" className="p-4 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="text-5xl font-bold font-display text-amber-400">{behavioralScore}</div>
+            <div>
+              <p className="text-sm text-muted-foreground">STAR completeness, problem solving, and emotional intelligence.</p>
+              <Progress value={behavioralScore} className="h-2 mt-2" indicatorClassName={getBar(behavioralScore)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="bg-black/20 border-white/5"><CardContent className="p-5"><h4 className="font-semibold mb-2">Missing STAR Elements</h4><p className="text-sm text-muted-foreground">{Array.isArray(behavioralAnalysis.missingElements) && behavioralAnalysis.missingElements.length > 0 ? behavioralAnalysis.missingElements.join(", ") : "No major missing elements detected."}</p></CardContent></Card>
+            <Card className="bg-black/20 border-white/5"><CardContent className="p-5"><h4 className="font-semibold mb-2">Improvement Suggestions</h4><p className="text-sm text-muted-foreground">{Array.isArray(behavioralAnalysis.suggestions) ? behavioralAnalysis.suggestions.join(" ") : behavioralAnalysis.starCompleteness ?? "Use clear Situation, Task, Action, and Result framing."}</p></CardContent></Card>
+          </div>
+        </TabsContent>
+        <TabsContent value="suggestions" className="p-4 space-y-4">
+          {answerQualityBreakdown.length > 0 ? answerQualityBreakdown.map((item, index) => (
+            <Card key={index} className="bg-black/20 border-white/5">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex justify-between gap-4">
+                  <h4 className="font-semibold">Question {index + 1}</h4>
+                  <Badge variant="secondary">{item.rating}/100</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">{item.question}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div><h5 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Your Answer</h5><p className="text-sm leading-relaxed">{item.yourAnswer}</p></div>
+                  <div><h5 className="text-xs uppercase tracking-wider text-primary mb-2">Suggested Better Answer</h5><p className="text-sm leading-relaxed">{item.suggestedBetterAnswer}</p></div>
+                </div>
+              </CardContent>
+            </Card>
+          )) : (
+            <p className="text-sm text-muted-foreground">Suggested improved answers will appear after the AI completes a full transcript analysis.</p>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="glass-panel">

@@ -100,10 +100,11 @@ export default function CandidateDashboard() {
                 <CardContent className="p-6 relative z-10 flex flex-col h-full justify-between gap-6">
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0 pr-3">
-                      <h3 className="font-semibold text-lg line-clamp-1">{interview.jobTitle || "General Technical Interview"}</h3>
+                      <h3 className="font-semibold text-lg line-clamp-1">{interview.jobTitle || `${(interview as any).role ?? "General"} Interview`}</h3>
                       <p className="text-sm text-muted-foreground mt-1">
                         {new Date(interview.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                       </p>
+                      <p className="text-xs text-primary mt-1">{(interview as any).difficulty ?? "Medium"} · {(interview as any).interviewStyle ?? "Friendly"}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {getStatusBadge(interview.status)}

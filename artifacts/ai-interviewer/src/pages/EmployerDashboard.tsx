@@ -67,7 +67,10 @@ export default function EmployerDashboard() {
               <Card className="h-full flex flex-col glass-panel hover:-translate-y-1 transition-transform duration-300">
                 <CardContent className="p-6 flex-1 flex flex-col">
                   <div className="flex justify-between items-start mb-4">
-                    <h3 className="font-display font-semibold text-xl leading-tight">{job.title}</h3>
+                    <div>
+                      <h3 className="font-display font-semibold text-xl leading-tight">{job.title}</h3>
+                      <p className="text-xs text-primary mt-1">{(job as any).role ?? "Software Engineer"}</p>
+                    </div>
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -87,7 +90,7 @@ export default function EmployerDashboard() {
                     <div className="flex flex-wrap gap-2">
                       {job.skills.map((skill, i) => (
                         <Badge key={i} variant="secondary" className="bg-white/5 border-white/10 text-xs">
-                          {skill.name} <span className="opacity-50 ml-1">L{skill.requiredLevel}</span>
+                          {skill.name} <span className="opacity-50 ml-1">L{skill.requiredLevel} · {(skill as any).weight ?? 50}%</span>
                         </Badge>
                       ))}
                     </div>

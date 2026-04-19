@@ -51,6 +51,9 @@ export default function InterviewSetup() {
   const [resumeText, setResumeText] = useState("");
   const [candidateName, setCandidateName] = useState("");
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [role, setRole] = useState("Software Engineer");
+  const [difficulty, setDifficulty] = useState("Medium");
+  const [interviewStyle, setInterviewStyle] = useState("Friendly");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -83,7 +86,7 @@ export default function InterviewSetup() {
     }
     setIsLoading(true);
     try {
-      const interview = await createMutation.mutateAsync({ data: { jobId: selectedJobId || undefined } });
+      const interview = await createMutation.mutateAsync({ data: { jobId: selectedJobId || undefined, role, difficulty, interviewStyle } as any });
       if (inputMode === "file" && selectedFile) {
         await uploadResumeFile(interview.id, selectedFile, candidateName || "Candidate");
       } else {
@@ -198,6 +201,48 @@ export default function InterviewSetup() {
             {step === 2 && (
               <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
                 <div>
+                  <label className="block text-sm font-medium mb-2">Select Role</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                    {["Software Engineer", "Product Manager", "HR Interview"].map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setRole(option)}
+                        className={cn("p-3 rounded-xl border text-sm font-medium transition-all", role === option ? "border-primary bg-primary/10 text-primary" : "border-white/10 bg-black/20 text-muted-foreground hover:border-white/30")}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="block text-sm font-medium mb-2">Select Difficulty</label>
+                  <div className="grid grid-cols-3 gap-3 mb-6">
+                    {["Easy", "Medium", "Hard"].map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setDifficulty(option)}
+                        className={cn("p-3 rounded-xl border text-sm font-medium transition-all", difficulty === option ? "border-primary bg-primary/10 text-primary" : "border-white/10 bg-black/20 text-muted-foreground hover:border-white/30")}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="block text-sm font-medium mb-2">Select Interview Style</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                    {["Friendly", "Strict", "Technical Deep Dive"].map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setInterviewStyle(option)}
+                        className={cn("p-3 rounded-xl border text-sm font-medium transition-all", interviewStyle === option ? "border-primary bg-primary/10 text-primary" : "border-white/10 bg-black/20 text-muted-foreground hover:border-white/30")}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+
                   <label className="block text-sm font-medium mb-2">Interview Profile <span className="text-muted-foreground font-normal">(optional)</span></label>
                   <p className="text-xs text-muted-foreground mb-4">Choose a job profile for skill-specific grading, or run a general adaptive assessment.</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

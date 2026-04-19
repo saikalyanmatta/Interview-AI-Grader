@@ -1,0 +1,114 @@
+🌟 EXISTING SYSTEM CONTEXT
+App has 2 entry roles: Student and Employer
+Student flow:
+Upload resume
+AI asks adaptive questions
+Uses mic + camera to analyze confidence
+Generates final report with score
+Employer flow:
+Sets interview type and required skills
+🚀 FEATURE 1: HUMAN-LIKE INTERVIEW EXPERIENCE
+
+📍 WHERE:
+
+After Student uploads resume → enters "Interview Setup Screen"
+
+📍 ADD UI:
+
+Dropdown: "Select Interview Style"
+Friendly
+Strict
+Technical Deep Dive
+
+📍 BEHAVIOR:
+
+AI tone changes based on selection
+Add dynamic follow-up questions:
+AI should reference previous answers
+Ask clarifying questions like:
+"Can you elaborate on that?"
+Maintain context memory across questions
+🧠 FEATURE 2: BEHAVIORAL & SITUATIONAL ANALYSIS
+
+📍 WHERE:
+
+During interview session (Question Phase)
+
+📍 ADD:
+
+Include behavioral questions using STAR method:
+Situation
+Task
+Action
+Result
+
+📍 BACKEND LOGIC:
+
+Analyze answers for:
+Completeness of STAR structure
+Problem-solving approach
+Emotional intelligence
+
+📍 OUTPUT (Report Section):
+
+Add "Behavioral Skills Score"
+Add explanation:
+Missing elements (e.g., no clear Result)
+Suggestions for improvement
+📊 FEATURE 3: ADVANCED FEEDBACK SYSTEM
+
+📍 WHERE:
+
+Final Report Screen (after interview ends)
+
+📍 ADD NEW SECTIONS:
+
+Communication Analysis
+Clarity score
+Filler words detection (uh, um, etc.)
+Sentence structure quality
+Confidence Analysis
+Based on voice + facial cues
+Answer Quality Breakdown
+Per question rating
+AI IMPROVED ANSWERS
+Show:
+"Your Answer"
+"Suggested Better Answer"
+
+📍 UI:
+
+Use tabs or cards:
+Overview
+Communication
+Behavioral
+Suggestions
+🎯 FEATURE 4: ROLE-BASED INTERVIEW SIMULATION
+
+📍 WHERE:
+
+Student Dashboard → BEFORE starting interview
+
+📍 ADD UI:
+
+"Select Role" dropdown:
+Software Engineer
+Product Manager
+HR Interview
+"Select Difficulty":
+Easy / Medium / Hard
+
+📍 BEHAVIOR:
+
+Question generation changes based on role:
+Software → coding + DSA
+PM → product thinking
+HR → behavioral
+
+📍 EMPLOYER SIDE IMPROVEMENT:
+
+When Employer creates interview:
+Add:
+Role selection
+Skills weightage sliders
+Store config and apply to candidates

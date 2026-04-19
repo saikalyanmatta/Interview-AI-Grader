@@ -2,21 +2,21 @@ import fs from "node:fs";
 import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
 
-if (!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
-  throw new Error(
-    "AI_INTEGRATIONS_OPENAI_BASE_URL must be set. Did you forget to provision the OpenAI AI integration?",
-  );
-}
+const missingOpenAIMessage =
+  "AI_INTEGRATIONS_OPENAI_BASE_URL and AI_INTEGRATIONS_OPENAI_API_KEY must be set. Connect the OpenAI AI integration before using image generation features.";
 
-if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
-  throw new Error(
-    "AI_INTEGRATIONS_OPENAI_API_KEY must be set. Did you forget to provision the OpenAI AI integration?",
-  );
-}
+const client = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? "missing",
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ?? "http://127.0.0.1:9",
+});
 
-export const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+export const openai = new Proxy(client, {
+  get(target, prop, receiver) {
+    if (!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || !process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+      throw new Error(missingOpenAIMessage);
+    }
+    return Reflect.get(target, prop, receiver);
+  },
 });
 
 export async function generateImageBuffer(

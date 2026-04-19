@@ -64,21 +64,72 @@ export interface SkillRequirement {
    * @maximum 10
    */
   requiredLevel: number;
+  /**
+   * Employer-defined importance weight for this skill
+   * @minimum 0
+   * @maximum 100
+   */
+  weight?: number;
 }
+
+export type JobRole = (typeof JobRole)[keyof typeof JobRole];
+
+export const JobRole = {
+  Software_Engineer: "Software Engineer",
+  Product_Manager: "Product Manager",
+  HR_Interview: "HR Interview",
+} as const;
 
 export interface Job {
   id: number;
   title: string;
+  role?: JobRole;
   description: string;
   skills: SkillRequirement[];
   createdAt: string;
 }
 
+export type CreateJobBodyRole =
+  (typeof CreateJobBodyRole)[keyof typeof CreateJobBodyRole];
+
+export const CreateJobBodyRole = {
+  Software_Engineer: "Software Engineer",
+  Product_Manager: "Product Manager",
+  HR_Interview: "HR Interview",
+} as const;
+
 export interface CreateJobBody {
   title: string;
+  role?: CreateJobBodyRole;
   description: string;
   skills: SkillRequirement[];
 }
+
+export type InterviewRole = (typeof InterviewRole)[keyof typeof InterviewRole];
+
+export const InterviewRole = {
+  Software_Engineer: "Software Engineer",
+  Product_Manager: "Product Manager",
+  HR_Interview: "HR Interview",
+} as const;
+
+export type InterviewDifficulty =
+  (typeof InterviewDifficulty)[keyof typeof InterviewDifficulty];
+
+export const InterviewDifficulty = {
+  Easy: "Easy",
+  Medium: "Medium",
+  Hard: "Hard",
+} as const;
+
+export type InterviewInterviewStyle =
+  (typeof InterviewInterviewStyle)[keyof typeof InterviewInterviewStyle];
+
+export const InterviewInterviewStyle = {
+  Friendly: "Friendly",
+  Strict: "Strict",
+  Technical_Deep_Dive: "Technical Deep Dive",
+} as const;
 
 export type InterviewStatus =
   (typeof InterviewStatus)[keyof typeof InterviewStatus];
@@ -95,6 +146,9 @@ export interface Interview {
   jobId?: number | null;
   /** @nullable */
   jobTitle?: string | null;
+  role?: InterviewRole;
+  difficulty?: InterviewDifficulty;
+  interviewStyle?: InterviewInterviewStyle;
   status: InterviewStatus;
   /** @nullable */
   candidateName?: string | null;
@@ -124,6 +178,33 @@ export interface InterviewAnswer {
   transcript: string;
 }
 
+export type InterviewWithDetailsRole =
+  (typeof InterviewWithDetailsRole)[keyof typeof InterviewWithDetailsRole];
+
+export const InterviewWithDetailsRole = {
+  Software_Engineer: "Software Engineer",
+  Product_Manager: "Product Manager",
+  HR_Interview: "HR Interview",
+} as const;
+
+export type InterviewWithDetailsDifficulty =
+  (typeof InterviewWithDetailsDifficulty)[keyof typeof InterviewWithDetailsDifficulty];
+
+export const InterviewWithDetailsDifficulty = {
+  Easy: "Easy",
+  Medium: "Medium",
+  Hard: "Hard",
+} as const;
+
+export type InterviewWithDetailsInterviewStyle =
+  (typeof InterviewWithDetailsInterviewStyle)[keyof typeof InterviewWithDetailsInterviewStyle];
+
+export const InterviewWithDetailsInterviewStyle = {
+  Friendly: "Friendly",
+  Strict: "Strict",
+  Technical_Deep_Dive: "Technical Deep Dive",
+} as const;
+
 export type InterviewWithDetailsStatus =
   (typeof InterviewWithDetailsStatus)[keyof typeof InterviewWithDetailsStatus];
 
@@ -132,6 +213,50 @@ export const InterviewWithDetailsStatus = {
   in_progress: "in_progress",
   completed: "completed",
 } as const;
+
+export interface BehavioralAnalysis {
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  starScore?: number;
+  situation?: string;
+  task?: string;
+  action?: string;
+  result?: string;
+  feedback?: string;
+}
+
+export type CommunicationAnalysisFillerWords = { [key: string]: number };
+
+export interface CommunicationAnalysis {
+  fillerWords?: CommunicationAnalysisFillerWords;
+  fillerWordCount?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  clarityScore?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  sentenceStructureScore?: number;
+  speakingPace?: string;
+  feedback?: string;
+}
+
+export interface AnswerQualityBreakdown {
+  questionId?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  score?: number;
+  strengths?: string[];
+  improvementAreas?: string[];
+  suggestedAnswer?: string;
+}
 
 export interface SkillScore {
   skill: string;
@@ -168,6 +293,14 @@ export interface InterviewReport {
    * @minimum 0
    * @maximum 100
    */
+  behavioralScore?: number;
+  behavioralAnalysis?: BehavioralAnalysis;
+  communicationAnalysis?: CommunicationAnalysis;
+  answerQualityBreakdown?: AnswerQualityBreakdown[];
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
   overallScore: number;
   skillScores: SkillScore[];
   recommendation: InterviewReportRecommendation;
@@ -182,6 +315,9 @@ export interface InterviewWithDetails {
   jobId?: number | null;
   /** @nullable */
   jobTitle?: string | null;
+  role?: InterviewWithDetailsRole;
+  difficulty?: InterviewWithDetailsDifficulty;
+  interviewStyle?: InterviewWithDetailsInterviewStyle;
   status: InterviewWithDetailsStatus;
   /** @nullable */
   candidateName?: string | null;
@@ -193,9 +329,39 @@ export interface InterviewWithDetails {
   createdAt: string;
 }
 
+export type CreateInterviewBodyRole =
+  (typeof CreateInterviewBodyRole)[keyof typeof CreateInterviewBodyRole];
+
+export const CreateInterviewBodyRole = {
+  Software_Engineer: "Software Engineer",
+  Product_Manager: "Product Manager",
+  HR_Interview: "HR Interview",
+} as const;
+
+export type CreateInterviewBodyDifficulty =
+  (typeof CreateInterviewBodyDifficulty)[keyof typeof CreateInterviewBodyDifficulty];
+
+export const CreateInterviewBodyDifficulty = {
+  Easy: "Easy",
+  Medium: "Medium",
+  Hard: "Hard",
+} as const;
+
+export type CreateInterviewBodyInterviewStyle =
+  (typeof CreateInterviewBodyInterviewStyle)[keyof typeof CreateInterviewBodyInterviewStyle];
+
+export const CreateInterviewBodyInterviewStyle = {
+  Friendly: "Friendly",
+  Strict: "Strict",
+  Technical_Deep_Dive: "Technical Deep Dive",
+} as const;
+
 export interface CreateInterviewBody {
   /** Optional job profile ID for employer-defined interviews */
   jobId?: number;
+  role?: CreateInterviewBodyRole;
+  difficulty?: CreateInterviewBodyDifficulty;
+  interviewStyle?: CreateInterviewBodyInterviewStyle;
 }
 
 export interface UploadResumeBody {

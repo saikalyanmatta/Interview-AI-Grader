@@ -8,6 +8,9 @@
 import type { InterviewAnswer } from "./interviewAnswer";
 import type { InterviewQuestion } from "./interviewQuestion";
 import type { InterviewReport } from "./interviewReport";
+import type { InterviewWithDetailsDifficulty } from "./interviewWithDetailsDifficulty";
+import type { InterviewWithDetailsInterviewStyle } from "./interviewWithDetailsInterviewStyle";
+import type { InterviewWithDetailsRole } from "./interviewWithDetailsRole";
 import type { InterviewWithDetailsStatus } from "./interviewWithDetailsStatus";
 
 export interface InterviewWithDetails {
@@ -16,6 +19,9 @@ export interface InterviewWithDetails {
   jobId?: number | null;
   /** @nullable */
   jobTitle?: string | null;
+  role?: InterviewWithDetailsRole;
+  difficulty?: InterviewWithDetailsDifficulty;
+  interviewStyle?: InterviewWithDetailsInterviewStyle;
   status: InterviewWithDetailsStatus;
   /** @nullable */
   candidateName?: string | null;

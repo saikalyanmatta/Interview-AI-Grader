@@ -5,10 +5,12 @@
  * AI Interviewer API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateJobBodyRole } from "./createJobBodyRole";
 import type { SkillRequirement } from "./skillRequirement";
 
 export interface CreateJobBody {
   title: string;
+  role?: CreateJobBodyRole;
   description: string;
   skills: SkillRequirement[];
 }

@@ -98,9 +98,15 @@ export const LogoutMobileSessionResponse = zod.object({
  */
 export const listJobsResponseSkillsItemRequiredLevelMax = 10;
 
+export const listJobsResponseSkillsItemWeightMin = 0;
+export const listJobsResponseSkillsItemWeightMax = 100;
+
 export const ListJobsResponseItem = zod.object({
   id: zod.number(),
   title: zod.string(),
+  role: zod
+    .enum(["Software Engineer", "Product Manager", "HR Interview"])
+    .optional(),
   description: zod.string(),
   skills: zod.array(
     zod.object({
@@ -114,6 +120,12 @@ export const ListJobsResponseItem = zod.object({
         .min(1)
         .max(listJobsResponseSkillsItemRequiredLevelMax)
         .describe("Required proficiency level out of 10"),
+      weight: zod
+        .number()
+        .min(listJobsResponseSkillsItemWeightMin)
+        .max(listJobsResponseSkillsItemWeightMax)
+        .optional()
+        .describe("Employer-defined importance weight for this skill"),
     }),
   ),
   createdAt: zod.date(),
@@ -125,8 +137,14 @@ export const ListJobsResponse = zod.array(ListJobsResponseItem);
  */
 export const createJobBodySkillsItemRequiredLevelMax = 10;
 
+export const createJobBodySkillsItemWeightMin = 0;
+export const createJobBodySkillsItemWeightMax = 100;
+
 export const CreateJobBody = zod.object({
   title: zod.string(),
+  role: zod
+    .enum(["Software Engineer", "Product Manager", "HR Interview"])
+    .optional(),
   description: zod.string(),
   skills: zod.array(
     zod.object({
@@ -140,6 +158,12 @@ export const CreateJobBody = zod.object({
         .min(1)
         .max(createJobBodySkillsItemRequiredLevelMax)
         .describe("Required proficiency level out of 10"),
+      weight: zod
+        .number()
+        .min(createJobBodySkillsItemWeightMin)
+        .max(createJobBodySkillsItemWeightMax)
+        .optional()
+        .describe("Employer-defined importance weight for this skill"),
     }),
   ),
 });
@@ -153,9 +177,15 @@ export const GetJobParams = zod.object({
 
 export const getJobResponseSkillsItemRequiredLevelMax = 10;
 
+export const getJobResponseSkillsItemWeightMin = 0;
+export const getJobResponseSkillsItemWeightMax = 100;
+
 export const GetJobResponse = zod.object({
   id: zod.number(),
   title: zod.string(),
+  role: zod
+    .enum(["Software Engineer", "Product Manager", "HR Interview"])
+    .optional(),
   description: zod.string(),
   skills: zod.array(
     zod.object({
@@ -169,6 +199,12 @@ export const GetJobResponse = zod.object({
         .min(1)
         .max(getJobResponseSkillsItemRequiredLevelMax)
         .describe("Required proficiency level out of 10"),
+      weight: zod
+        .number()
+        .min(getJobResponseSkillsItemWeightMin)
+        .max(getJobResponseSkillsItemWeightMax)
+        .optional()
+        .describe("Employer-defined importance weight for this skill"),
     }),
   ),
   createdAt: zod.date(),
@@ -183,8 +219,14 @@ export const UpdateJobParams = zod.object({
 
 export const updateJobBodySkillsItemRequiredLevelMax = 10;
 
+export const updateJobBodySkillsItemWeightMin = 0;
+export const updateJobBodySkillsItemWeightMax = 100;
+
 export const UpdateJobBody = zod.object({
   title: zod.string(),
+  role: zod
+    .enum(["Software Engineer", "Product Manager", "HR Interview"])
+    .optional(),
   description: zod.string(),
   skills: zod.array(
     zod.object({
@@ -198,15 +240,27 @@ export const UpdateJobBody = zod.object({
         .min(1)
         .max(updateJobBodySkillsItemRequiredLevelMax)
         .describe("Required proficiency level out of 10"),
+      weight: zod
+        .number()
+        .min(updateJobBodySkillsItemWeightMin)
+        .max(updateJobBodySkillsItemWeightMax)
+        .optional()
+        .describe("Employer-defined importance weight for this skill"),
     }),
   ),
 });
 
 export const updateJobResponseSkillsItemRequiredLevelMax = 10;
 
+export const updateJobResponseSkillsItemWeightMin = 0;
+export const updateJobResponseSkillsItemWeightMax = 100;
+
 export const UpdateJobResponse = zod.object({
   id: zod.number(),
   title: zod.string(),
+  role: zod
+    .enum(["Software Engineer", "Product Manager", "HR Interview"])
+    .optional(),
   description: zod.string(),
   skills: zod.array(
     zod.object({
@@ -220,6 +274,12 @@ export const UpdateJobResponse = zod.object({
         .min(1)
         .max(updateJobResponseSkillsItemRequiredLevelMax)
         .describe("Required proficiency level out of 10"),
+      weight: zod
+        .number()
+        .min(updateJobResponseSkillsItemWeightMin)
+        .max(updateJobResponseSkillsItemWeightMax)
+        .optional()
+        .describe("Employer-defined importance weight for this skill"),
     }),
   ),
   createdAt: zod.date(),
@@ -239,6 +299,13 @@ export const ListInterviewsResponseItem = zod.object({
   id: zod.number(),
   jobId: zod.number().nullish(),
   jobTitle: zod.string().nullish(),
+  role: zod
+    .enum(["Software Engineer", "Product Manager", "HR Interview"])
+    .optional(),
+  difficulty: zod.enum(["Easy", "Medium", "Hard"]).optional(),
+  interviewStyle: zod
+    .enum(["Friendly", "Strict", "Technical Deep Dive"])
+    .optional(),
   status: zod.enum(["pending", "in_progress", "completed"]),
   candidateName: zod.string().nullish(),
   resumeText: zod.string().nullish(),
@@ -256,6 +323,13 @@ export const CreateInterviewBody = zod.object({
     .number()
     .optional()
     .describe("Optional job profile ID for employer-defined interviews"),
+  role: zod
+    .enum(["Software Engineer", "Product Manager", "HR Interview"])
+    .optional(),
+  difficulty: zod.enum(["Easy", "Medium", "Hard"]).optional(),
+  interviewStyle: zod
+    .enum(["Friendly", "Strict", "Technical Deep Dive"])
+    .optional(),
 });
 
 /**
@@ -268,6 +342,21 @@ export const GetInterviewParams = zod.object({
 export const getInterviewResponseReportOneEnglishScoreMin = 0;
 export const getInterviewResponseReportOneEnglishScoreMax = 100;
 
+export const getInterviewResponseReportOneBehavioralScoreMin = 0;
+export const getInterviewResponseReportOneBehavioralScoreMax = 100;
+
+export const getInterviewResponseReportOneBehavioralAnalysisStarScoreMin = 0;
+export const getInterviewResponseReportOneBehavioralAnalysisStarScoreMax = 100;
+
+export const getInterviewResponseReportOneCommunicationAnalysisClarityScoreMin = 0;
+export const getInterviewResponseReportOneCommunicationAnalysisClarityScoreMax = 100;
+
+export const getInterviewResponseReportOneCommunicationAnalysisSentenceStructureScoreMin = 0;
+export const getInterviewResponseReportOneCommunicationAnalysisSentenceStructureScoreMax = 100;
+
+export const getInterviewResponseReportOneAnswerQualityBreakdownItemScoreMin = 0;
+export const getInterviewResponseReportOneAnswerQualityBreakdownItemScoreMax = 100;
+
 export const getInterviewResponseReportOneOverallScoreMin = 0;
 export const getInterviewResponseReportOneOverallScoreMax = 100;
 
@@ -278,6 +367,13 @@ export const GetInterviewResponse = zod.object({
   id: zod.number(),
   jobId: zod.number().nullish(),
   jobTitle: zod.string().nullish(),
+  role: zod
+    .enum(["Software Engineer", "Product Manager", "HR Interview"])
+    .optional(),
+  difficulty: zod.enum(["Easy", "Medium", "Hard"]).optional(),
+  interviewStyle: zod
+    .enum(["Friendly", "Strict", "Technical Deep Dive"])
+    .optional(),
   status: zod.enum(["pending", "in_progress", "completed"]),
   candidateName: zod.string().nullish(),
   resumeText: zod.string().nullish(),
@@ -311,6 +407,70 @@ export const GetInterviewResponse = zod.object({
           .max(getInterviewResponseReportOneEnglishScoreMax)
           .describe("English speaking ability score out of 100"),
         englishFeedback: zod.string().optional(),
+        behavioralScore: zod
+          .number()
+          .min(getInterviewResponseReportOneBehavioralScoreMin)
+          .max(getInterviewResponseReportOneBehavioralScoreMax)
+          .optional(),
+        behavioralAnalysis: zod
+          .object({
+            starScore: zod
+              .number()
+              .min(getInterviewResponseReportOneBehavioralAnalysisStarScoreMin)
+              .max(getInterviewResponseReportOneBehavioralAnalysisStarScoreMax)
+              .optional(),
+            situation: zod.string().optional(),
+            task: zod.string().optional(),
+            action: zod.string().optional(),
+            result: zod.string().optional(),
+            feedback: zod.string().optional(),
+          })
+          .optional(),
+        communicationAnalysis: zod
+          .object({
+            fillerWords: zod.record(zod.string(), zod.number()).optional(),
+            fillerWordCount: zod.number().optional(),
+            clarityScore: zod
+              .number()
+              .min(
+                getInterviewResponseReportOneCommunicationAnalysisClarityScoreMin,
+              )
+              .max(
+                getInterviewResponseReportOneCommunicationAnalysisClarityScoreMax,
+              )
+              .optional(),
+            sentenceStructureScore: zod
+              .number()
+              .min(
+                getInterviewResponseReportOneCommunicationAnalysisSentenceStructureScoreMin,
+              )
+              .max(
+                getInterviewResponseReportOneCommunicationAnalysisSentenceStructureScoreMax,
+              )
+              .optional(),
+            speakingPace: zod.string().optional(),
+            feedback: zod.string().optional(),
+          })
+          .optional(),
+        answerQualityBreakdown: zod
+          .array(
+            zod.object({
+              questionId: zod.number().optional(),
+              score: zod
+                .number()
+                .min(
+                  getInterviewResponseReportOneAnswerQualityBreakdownItemScoreMin,
+                )
+                .max(
+                  getInterviewResponseReportOneAnswerQualityBreakdownItemScoreMax,
+                )
+                .optional(),
+              strengths: zod.array(zod.string()).optional(),
+              improvementAreas: zod.array(zod.string()).optional(),
+              suggestedAnswer: zod.string().optional(),
+            }),
+          )
+          .optional(),
         overallScore: zod
           .number()
           .min(getInterviewResponseReportOneOverallScoreMin)
@@ -419,6 +579,21 @@ export const CompleteInterviewParams = zod.object({
 export const completeInterviewResponseEnglishScoreMin = 0;
 export const completeInterviewResponseEnglishScoreMax = 100;
 
+export const completeInterviewResponseBehavioralScoreMin = 0;
+export const completeInterviewResponseBehavioralScoreMax = 100;
+
+export const completeInterviewResponseBehavioralAnalysisStarScoreMin = 0;
+export const completeInterviewResponseBehavioralAnalysisStarScoreMax = 100;
+
+export const completeInterviewResponseCommunicationAnalysisClarityScoreMin = 0;
+export const completeInterviewResponseCommunicationAnalysisClarityScoreMax = 100;
+
+export const completeInterviewResponseCommunicationAnalysisSentenceStructureScoreMin = 0;
+export const completeInterviewResponseCommunicationAnalysisSentenceStructureScoreMax = 100;
+
+export const completeInterviewResponseAnswerQualityBreakdownItemScoreMin = 0;
+export const completeInterviewResponseAnswerQualityBreakdownItemScoreMax = 100;
+
 export const completeInterviewResponseOverallScoreMin = 0;
 export const completeInterviewResponseOverallScoreMax = 100;
 
@@ -434,6 +609,62 @@ export const CompleteInterviewResponse = zod.object({
     .max(completeInterviewResponseEnglishScoreMax)
     .describe("English speaking ability score out of 100"),
   englishFeedback: zod.string().optional(),
+  behavioralScore: zod
+    .number()
+    .min(completeInterviewResponseBehavioralScoreMin)
+    .max(completeInterviewResponseBehavioralScoreMax)
+    .optional(),
+  behavioralAnalysis: zod
+    .object({
+      starScore: zod
+        .number()
+        .min(completeInterviewResponseBehavioralAnalysisStarScoreMin)
+        .max(completeInterviewResponseBehavioralAnalysisStarScoreMax)
+        .optional(),
+      situation: zod.string().optional(),
+      task: zod.string().optional(),
+      action: zod.string().optional(),
+      result: zod.string().optional(),
+      feedback: zod.string().optional(),
+    })
+    .optional(),
+  communicationAnalysis: zod
+    .object({
+      fillerWords: zod.record(zod.string(), zod.number()).optional(),
+      fillerWordCount: zod.number().optional(),
+      clarityScore: zod
+        .number()
+        .min(completeInterviewResponseCommunicationAnalysisClarityScoreMin)
+        .max(completeInterviewResponseCommunicationAnalysisClarityScoreMax)
+        .optional(),
+      sentenceStructureScore: zod
+        .number()
+        .min(
+          completeInterviewResponseCommunicationAnalysisSentenceStructureScoreMin,
+        )
+        .max(
+          completeInterviewResponseCommunicationAnalysisSentenceStructureScoreMax,
+        )
+        .optional(),
+      speakingPace: zod.string().optional(),
+      feedback: zod.string().optional(),
+    })
+    .optional(),
+  answerQualityBreakdown: zod
+    .array(
+      zod.object({
+        questionId: zod.number().optional(),
+        score: zod
+          .number()
+          .min(completeInterviewResponseAnswerQualityBreakdownItemScoreMin)
+          .max(completeInterviewResponseAnswerQualityBreakdownItemScoreMax)
+          .optional(),
+        strengths: zod.array(zod.string()).optional(),
+        improvementAreas: zod.array(zod.string()).optional(),
+        suggestedAnswer: zod.string().optional(),
+      }),
+    )
+    .optional(),
   overallScore: zod
     .number()
     .min(completeInterviewResponseOverallScoreMin)
@@ -464,6 +695,21 @@ export const GetInterviewReportParams = zod.object({
 export const getInterviewReportResponseEnglishScoreMin = 0;
 export const getInterviewReportResponseEnglishScoreMax = 100;
 
+export const getInterviewReportResponseBehavioralScoreMin = 0;
+export const getInterviewReportResponseBehavioralScoreMax = 100;
+
+export const getInterviewReportResponseBehavioralAnalysisStarScoreMin = 0;
+export const getInterviewReportResponseBehavioralAnalysisStarScoreMax = 100;
+
+export const getInterviewReportResponseCommunicationAnalysisClarityScoreMin = 0;
+export const getInterviewReportResponseCommunicationAnalysisClarityScoreMax = 100;
+
+export const getInterviewReportResponseCommunicationAnalysisSentenceStructureScoreMin = 0;
+export const getInterviewReportResponseCommunicationAnalysisSentenceStructureScoreMax = 100;
+
+export const getInterviewReportResponseAnswerQualityBreakdownItemScoreMin = 0;
+export const getInterviewReportResponseAnswerQualityBreakdownItemScoreMax = 100;
+
 export const getInterviewReportResponseOverallScoreMin = 0;
 export const getInterviewReportResponseOverallScoreMax = 100;
 
@@ -479,6 +725,62 @@ export const GetInterviewReportResponse = zod.object({
     .max(getInterviewReportResponseEnglishScoreMax)
     .describe("English speaking ability score out of 100"),
   englishFeedback: zod.string().optional(),
+  behavioralScore: zod
+    .number()
+    .min(getInterviewReportResponseBehavioralScoreMin)
+    .max(getInterviewReportResponseBehavioralScoreMax)
+    .optional(),
+  behavioralAnalysis: zod
+    .object({
+      starScore: zod
+        .number()
+        .min(getInterviewReportResponseBehavioralAnalysisStarScoreMin)
+        .max(getInterviewReportResponseBehavioralAnalysisStarScoreMax)
+        .optional(),
+      situation: zod.string().optional(),
+      task: zod.string().optional(),
+      action: zod.string().optional(),
+      result: zod.string().optional(),
+      feedback: zod.string().optional(),
+    })
+    .optional(),
+  communicationAnalysis: zod
+    .object({
+      fillerWords: zod.record(zod.string(), zod.number()).optional(),
+      fillerWordCount: zod.number().optional(),
+      clarityScore: zod
+        .number()
+        .min(getInterviewReportResponseCommunicationAnalysisClarityScoreMin)
+        .max(getInterviewReportResponseCommunicationAnalysisClarityScoreMax)
+        .optional(),
+      sentenceStructureScore: zod
+        .number()
+        .min(
+          getInterviewReportResponseCommunicationAnalysisSentenceStructureScoreMin,
+        )
+        .max(
+          getInterviewReportResponseCommunicationAnalysisSentenceStructureScoreMax,
+        )
+        .optional(),
+      speakingPace: zod.string().optional(),
+      feedback: zod.string().optional(),
+    })
+    .optional(),
+  answerQualityBreakdown: zod
+    .array(
+      zod.object({
+        questionId: zod.number().optional(),
+        score: zod
+          .number()
+          .min(getInterviewReportResponseAnswerQualityBreakdownItemScoreMin)
+          .max(getInterviewReportResponseAnswerQualityBreakdownItemScoreMax)
+          .optional(),
+        strengths: zod.array(zod.string()).optional(),
+        improvementAreas: zod.array(zod.string()).optional(),
+        suggestedAnswer: zod.string().optional(),
+      }),
+    )
+    .optional(),
   overallScore: zod
     .number()
     .min(getInterviewReportResponseOverallScoreMin)
