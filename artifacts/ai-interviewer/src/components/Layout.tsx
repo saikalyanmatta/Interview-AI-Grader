@@ -1,3 +1,4 @@
+import React from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
 import { Button } from "./ui/button";
