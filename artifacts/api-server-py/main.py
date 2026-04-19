@@ -3,6 +3,10 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes import auth, interviews, jobs, scheduled_interviews, profile, health
+from db.database import engine
+from db.models import Base
+
+Base.metadata.create_all(engine)
 
 app = FastAPI(title="Vocalize.ai API", version="2.0.0")
 

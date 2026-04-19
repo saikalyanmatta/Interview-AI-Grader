@@ -51,6 +51,9 @@ def set_session_cookie(response: Response, sid: str):
 
 
 def get_origin(request: Request) -> str:
+    replit_dev_domain = os.environ.get("REPLIT_DEV_DOMAIN")
+    if replit_dev_domain:
+        return f"https://{replit_dev_domain}"
     proto = request.headers.get("x-forwarded-proto", "https")
     host = request.headers.get("x-forwarded-host") or request.headers.get("host", "localhost")
     return f"{proto}://{host}"
