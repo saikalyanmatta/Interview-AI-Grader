@@ -62,9 +62,20 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    hmr: { clientPort: 443, protocol: "wss" },
     fs: {
       strict: true,
       deny: ["**/.*"],
+    },
+    warmup: {
+      clientFiles: [
+        "./src/main.tsx",
+        "./src/App.tsx",
+        "./src/pages/Landing.tsx",
+        "./src/pages/CandidateDashboard.tsx",
+        "./src/pages/EmployerDashboard.tsx",
+        "./src/components/Layout.tsx",
+      ],
     },
   },
   preview: {
