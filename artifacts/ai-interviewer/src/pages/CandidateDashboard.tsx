@@ -120,10 +120,18 @@ export default function CandidateDashboard() {
 
                   <div className="flex justify-between items-center pt-4 border-t border-white/10">
                     <div className="text-sm text-muted-foreground">
-                      {interview.status === "completed"
-                        ? "Report Available"
-                        : interview.status === "in_progress"
-                        ? `Answered: ${interview.answeredQuestions ?? 0} question(s)`
+                      {interview.status === "completed" ? (
+                        <div className="flex items-center gap-3">
+                          {(interview as any).overallScore !== null && (interview as any).overallScore !== undefined ? (
+                            <span className="text-xl font-bold text-primary">{(interview as any).overallScore}<span className="text-xs text-muted-foreground font-normal">/100</span></span>
+                          ) : null}
+                          {(interview as any).recommendation === "hire" && <span className="text-xs text-emerald-400 font-medium bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded-full">Strong Hire</span>}
+                          {(interview as any).recommendation === "maybe" && <span className="text-xs text-amber-400 font-medium bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">Needs Growth</span>}
+                          {(interview as any).recommendation === "no_hire" && <span className="text-xs text-red-400 font-medium bg-red-400/10 border border-red-400/20 px-2 py-0.5 rounded-full">No Hire</span>}
+                          {!(interview as any).overallScore && <span>Report Available</span>}
+                        </div>
+                      ) : interview.status === "in_progress"
+                        ? `${interview.answeredQuestions ?? 0} question(s) answered`
                         : "Ready to start"}
                     </div>
 

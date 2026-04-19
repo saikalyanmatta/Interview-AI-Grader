@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction, type RequestHandler } from "express";
 import { eq, and } from "drizzle-orm";
 import multer from "multer";
 import {
@@ -16,6 +16,9 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { speechToText, textToSpeech } from "@workspace/integrations-openai-ai-server/audio";
 
 const router: IRouter = Router();
+
+const wrap = (fn: (...args: any[]) => Promise<any>): RequestHandler =>
+  (req, res, next) => fn(req, res, next).catch(next);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -133,14 +136,26 @@ router.get("/interviews", async (req, res) => {
   const interviews = await db.select().from(interviewsTable).where(eq(interviewsTable.userId, req.user.id));
   const withCounts = await Promise.all(
     interviews.map(async (iv) => {
-      const questions = await db.select().from(interviewQuestionsTable).where(eq(interviewQuestionsTable.interviewId, iv.id));
-      const answers = await db.select().from(interviewAnswersTable).where(eq(interviewAnswersTable.interviewId, iv.id));
+      const [questions, answers] = await Promise.all([
+        db.select({ id: interviewQuestionsTable.id }).from(interviewQuestionsTable).where(eq(interviewQuestionsTable.interviewId, iv.id)),
+        db.select({ id: interviewAnswersTable.id }).from(interviewAnswersTable).where(eq(interviewAnswersTable.interviewId, iv.id)),
+      ]);
       let jobTitle: string | null = null;
       if (iv.jobId) {
-        const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, iv.jobId));
+        const [job] = await db.select({ title: jobsTable.title }).from(jobsTable).where(eq(jobsTable.id, iv.jobId));
         jobTitle = job?.title ?? null;
       }
-      return { ...iv, jobTitle, totalQuestions: questions.length, answeredQuestions: answers.length };
+      let overallScore: number | null = null;
+      let recommendation: string | null = null;
+      if (iv.status === "completed") {
+        const [report] = await db
+          .select({ overallScore: interviewReportsTable.overallScore, recommendation: interviewReportsTable.recommendation })
+          .from(interviewReportsTable)
+          .where(eq(interviewReportsTable.interviewId, iv.id));
+        overallScore = report?.overallScore ?? null;
+        recommendation = report?.recommendation ?? null;
+      }
+      return { ...iv, jobTitle, totalQuestions: questions.length, answeredQuestions: answers.length, overallScore, recommendation };
     })
   );
   res.json(withCounts);
@@ -557,13 +572,20 @@ router.post("/interviews/:id/complete", async (req, res) => {
   const difficulty = interview.difficulty || "Medium";
   const style = interview.interviewStyle || "Friendly";
 
+  const codingAnswersRaw = (interview as any).codingAnswers as Array<{ questionText: string; language: string; code: string }> | null;
+  const codingSection = codingAnswersRaw && codingAnswersRaw.length > 0
+    ? `\n\nCandidate Coding Answers (${codingAnswersRaw[0]?.language ?? "Unknown"}):\n` +
+      codingAnswersRaw.map((ca, i) => `Problem ${i + 1}: ${ca.questionText}\nSubmitted Code:\n${ca.code || "(no code submitted)"}`).join("\n\n")
+    : "";
+
   const gradingPrompt = `You are an expert interview evaluator. Analyze this complete interview and grade the candidate.
 
 Interview transcript with fluency metrics:
-${qa}
+${qa}${codingSection}
 
 Interview configuration: ${role} role, ${difficulty} difficulty, ${style} interviewer style.
 ${jobSkills.length > 0 ? `Required job skills: ${jobSkills.map((s) => `${s.name} (required: ${s.requiredLevel}/10, weight: ${s.weight ?? 50}%)`).join(", ")}` : ""}
+${codingSection ? "Also evaluate the coding answers and include a coding skill score in skillScores." : ""}
 
 Candidate confidence score from facial analysis: ${avgConfidence}/100
 ${confidenceNotes ? `Confidence observations: ${confidenceNotes}` : ""}

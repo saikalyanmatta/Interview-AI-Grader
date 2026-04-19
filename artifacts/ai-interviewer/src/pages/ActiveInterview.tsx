@@ -195,13 +195,14 @@ export default function ActiveInterview() {
     };
   }, []);
 
-  useEffect(() => {
-    if (phase === "init" && mediaStreamRef.current) loadNextQuestion();
-  }, [phase, mediaStreamRef.current]);
+  const questionLoadedRef = useRef(false);
 
   useEffect(() => {
-    if (mediaStreamRef.current && phase === "init") setTimeout(loadNextQuestion, 500);
-  }, [cameraOn, cameraError]);
+    if (phase === "init" && mediaStreamRef.current && !questionLoadedRef.current) {
+      questionLoadedRef.current = true;
+      loadNextQuestion();
+    }
+  }, [phase, cameraOn, cameraError]);
 
   const loadNextQuestion = async () => {
     if (phase !== "init" && phase !== "answered") return;

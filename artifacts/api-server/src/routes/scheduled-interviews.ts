@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
 import { eq, and, inArray } from "drizzle-orm";
 import {
   db,
@@ -12,6 +12,9 @@ import {
 import ExcelJS from "exceljs";
 
 const router: IRouter = Router();
+
+const wrap = (fn: (...args: any[]) => Promise<any>): RequestHandler =>
+  (req, res, next) => fn(req, res, next).catch(next);
 
 router.get("/scheduled-interviews", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }

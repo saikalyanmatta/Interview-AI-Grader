@@ -124,6 +124,16 @@ pnpm --filter @workspace/api-spec run codegen
 pnpm --filter @workspace/db run push
 ```
 
+## Recent Improvements
+
+- **Global error handling**: Added global Express error middleware in `app.ts`; `wrap` async helper on routes
+- **ActiveInterview fix**: `questionLoadedRef` guard prevents double `loadNextQuestion` call on mount
+- **Error Boundary**: `ErrorBoundary` component wraps the entire React app to prevent blank-screen crashes
+- **Coding answer grading**: Coding submissions are now included in the AI grading prompt on `/interviews/:id/complete`
+- **Interview list API**: `GET /api/interviews` now returns `overallScore` and `recommendation` for completed interviews (parallel DB queries for performance)
+- **Candidate Dashboard**: Completed interviews now display their score (/100) and recommendation badge inline
+- **Layout nav bar**: Added "Candidate / Employer" mode switcher in the header that highlights the active section; replaced old desktop name display with a cleaner avatar-first layout
+
 ## Notes
 
 - ElevenLabs was considered for TTS/STT but user chose OpenAI audio (Replit credits)
