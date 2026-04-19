@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,11 +8,15 @@ import NotFound from "@/pages/not-found";
 const queryClient = new QueryClient();
 
 function Home() {
+  useEffect(() => {
+    window.location.replace("/");
+  }, []);
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Replit Agent is building...</h1>
-        <p className="mt-2 text-sm text-gray-600">Your app will appear here once it's ready.</p>
+        <h1 className="text-2xl font-bold text-gray-900">Opening Vocalize.ai...</h1>
+        <p className="mt-2 text-sm text-gray-600">Redirecting to the working interview app.</p>
       </div>
     </div>
   );

@@ -106,3 +106,4 @@ pnpm --filter @workspace/db run push
 - OpenAI alloy voice used for TTS interviewer questions
 - Audio recording uses useVoiceRecorder hook from integrations-openai-ai-react
 - Web Speech API is NOT used (OpenAI audio only)
+- The duplicate Interview Coach preview redirects to the real Vocalize.ai app at `/` so old preview links no longer show the scaffold build screen.
