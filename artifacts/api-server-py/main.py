@@ -8,7 +8,7 @@ from db.models import Base
 
 Base.metadata.create_all(engine)
 
-app = FastAPI(title="Vocalize.ai API", version="2.0.0")
+app = FastAPI(title="EvalPro API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,

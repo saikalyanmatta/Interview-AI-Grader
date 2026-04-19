@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useTheme } from "./ThemeProvider";
 import {
-  Mic, LayoutDashboard, Briefcase, LogOut, Sun, Moon,
+  LayoutDashboard, Briefcase, LogOut, Sun, Moon,
   Menu, X, ChevronRight, User
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,10 +26,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2.5 group shrink-0">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-              <Mic className="h-5 w-5 text-white" />
+            <div className="h-9 w-9 rounded-xl overflow-hidden shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+              <img src="/evalpro-logo.png" alt="EvalPro" className="w-full h-full object-cover" />
             </div>
-            <span className="font-display font-bold text-xl tracking-tight">Vocalize<span className="text-primary">.ai</span></span>
+            <span className="font-display font-bold text-xl tracking-tight">Eval<span className="text-primary">Pro</span></span>
           </Link>
 
           {isAuthenticated && (

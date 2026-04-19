@@ -218,7 +218,7 @@ export default function Landing() {
                 Ready to ace your next interview?
               </h2>
               <p className="text-muted-foreground max-w-lg mx-auto mb-8 text-lg">
-                Join thousands of candidates who improved their interview skills with Vocalize.ai. Start your first session in under 2 minutes.
+                Join thousands of candidates who improved their interview skills with EvalPro. Start your first session in under 2 minutes.
               </p>
               {isAuthenticated ? (
                 <Link href="/setup">

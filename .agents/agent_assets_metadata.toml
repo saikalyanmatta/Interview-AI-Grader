@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "fIL-npmk8qS0Xqvke7F9c"
+uri = "file://artifacts/ai-interviewer/public/evalpro-logo.png"
+type = "image"
+title = "generated_image"
