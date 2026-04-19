@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @theme inline {
@@ -24,46 +24,77 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-  
   --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-blob: blob 7s infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
 }
 
+/* ─── LIGHT MODE (default) ─── */
 :root {
-  /* Hardcoded Dark Theme for Professional SaaS Feel */
+  --background: 220 30% 97%;
+  --foreground: 222 47% 8%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 8%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 8%;
+
+  --primary: 262 83% 58%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 14% 92%;
+  --secondary-foreground: 222 47% 20%;
+
+  --muted: 220 14% 94%;
+  --muted-foreground: 220 10% 50%;
+
+  --accent: 262 83% 58%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 14% 88%;
+  --input: 220 14% 90%;
+  --ring: 262 83% 58%;
+
+  --radius: 0.75rem;
+}
+
+/* ─── DARK MODE ─── */
+.dark {
   --background: 222 47% 6%;
   --foreground: 210 40% 98%;
-  
+
   --card: 222 47% 9%;
   --card-foreground: 210 40% 98%;
-  
+
   --popover: 222 47% 9%;
   --popover-foreground: 210 40% 98%;
-  
+
   --primary: 262 83% 65%;
   --primary-foreground: 210 40% 98%;
-  
+
   --secondary: 217 32% 17%;
   --secondary-foreground: 210 40% 98%;
-  
+
   --muted: 217 32% 17%;
   --muted-foreground: 215 20% 65%;
-  
+
   --accent: 262 83% 65%;
   --accent-foreground: 210 40% 98%;
-  
+
   --destructive: 0 62% 30%;
   --destructive-foreground: 210 40% 98%;
-  
+
   --border: 217 32% 17%;
   --input: 217 32% 17%;
   --ring: 262 83% 65%;
-  
-  --radius: 0.75rem;
 }
 
 @layer base {
@@ -71,7 +102,8 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/30;
+    @apply bg-background text-foreground antialiased selection:bg-primary/20;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
@@ -79,33 +111,94 @@
   }
 }
 
+/* ─── GLASS PANELS ─── */
+.glass-panel {
+  @apply bg-card/70 backdrop-blur-xl border border-border shadow-xl;
+}
+.dark .glass-panel {
+  @apply bg-card/60 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50;
+}
+
+/* ─── GRADIENT TEXT ─── */
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500;
+}
+.dark .gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400;
+}
+
+/* ─── GRADIENT BUTTON ─── */
+.btn-gradient {
+  @apply bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg shadow-indigo-500/25 transition-all;
+}
+
+/* ─── ANIMATED BACKGROUND BLOBS ─── */
+.bg-blob-1 {
+  @apply absolute rounded-full pointer-events-none;
+  background: radial-gradient(circle, hsla(262, 83%, 58%, 0.12) 0%, transparent 70%);
+}
+.dark .bg-blob-1 {
+  background: radial-gradient(circle, hsla(262, 83%, 65%, 0.15) 0%, transparent 70%);
+}
+.bg-blob-2 {
+  @apply absolute rounded-full pointer-events-none;
+  background: radial-gradient(circle, hsla(220, 83%, 58%, 0.1) 0%, transparent 70%);
+}
+.dark .bg-blob-2 {
+  background: radial-gradient(circle, hsla(220, 83%, 65%, 0.12) 0%, transparent 70%);
+}
+
+/* ─── CARD HOVER ─── */
+.card-hover {
+  @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl;
+}
+
+/* ─── ANIMATIONS ─── */
 @keyframes blob {
   0% { transform: translate(0px, 0px) scale(1); }
   33% { transform: translate(30px, -50px) scale(1.1); }
   66% { transform: translate(-20px, 20px) scale(0.9); }
   100% { transform: translate(0px, 0px) scale(1); }
 }
-
-.glass-panel {
-  @apply bg-card/60 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50;
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
 }
 
-.gradient-text {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400;
+.animate-blob { animation: blob 7s infinite; }
+.animate-float { animation: float 6s ease-in-out infinite; }
+.animate-shimmer { animation: shimmer 2s linear infinite; }
+.animate-pulse-ring { animation: pulse-ring 1.5s ease-out infinite; }
+
+/* ─── SHIMMER LOADING ─── */
+.shimmer-bg {
+  background: linear-gradient(90deg, transparent 25%, hsl(var(--muted)) 50%, transparent 75%);
+  background-size: 200% 100%;
+  @apply animate-shimmer;
 }
 
-/* Scrollbar styles */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: hsl(var(--background)); }
+::-webkit-scrollbar-thumb { background: hsl(var(--muted)); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
+
+/* ─── FOCUS RING ─── */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: calc(var(--radius) - 2px);
 }
-::-webkit-scrollbar-track {
-  background: hsl(var(--background));
-}
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted));
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--secondary));
-}
+
+/* ─── STATUS BADGES ─── */
+.badge-hire { @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400; }
+.badge-maybe { @apply bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400; }
+.badge-no-hire { @apply bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400; }

@@ -1,207 +1,144 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
-import { useListJobs } from "@workspace/api-client-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, Code, ArrowLeft, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React, { useState } from "react";
+import { useLocation, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { Calendar, ChevronLeft, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function createScheduledInterview(data: any) {
-  const r = await fetch(`${BASE}/api/scheduled-interviews`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({}));
-    throw new Error((e as any).error || "Failed to create");
-  }
-  return r.json();
-}
+const fadeUp = { hidden: { opacity: 0, y: 16 }, show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.4, delay: i * 0.07 } }) };
 
 export default function ScheduleInterview() {
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const { data: jobs } = useListJobs();
-  const [isLoading, setIsLoading] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    jobId: "",
+    role: "Software Engineer",
+    difficulty: "Medium",
+    interviewStyle: "Friendly",
+    startTime: "",
+    deadlineTime: "",
+    codingQuestionsCount: "0",
+  });
+  const [saving, setSaving] = useState(false);
 
-  const [title, setTitle] = useState("");
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
-  const [startDate, setStartDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [deadlineDate, setDeadlineDate] = useState("");
-  const [deadlineTime, setDeadlineTime] = useState("");
-  const [codingQuestionsCount, setCodingQuestionsCount] = useState(0);
-  const [role, setRole] = useState("Software Engineer");
-  const [difficulty, setDifficulty] = useState("Medium");
-  const [interviewStyle, setInterviewStyle] = useState("Friendly");
+  const { data: jobs = [] } = useQuery({
+    queryKey: ["jobs"],
+    queryFn: async () => { const r = await fetch("/api/jobs"); if (!r.ok) throw new Error(); return r.json(); },
+  });
 
   const handleSubmit = async () => {
-    if (!title.trim()) { toast({ title: "Title required", variant: "destructive" }); return; }
-    if (!startDate || !startTime) { toast({ title: "Start time required", variant: "destructive" }); return; }
-    if (!deadlineDate || !deadlineTime) { toast({ title: "Deadline required", variant: "destructive" }); return; }
-    const startDateTime = new Date(`${startDate}T${startTime}`);
-    const deadlineDateTime = new Date(`${deadlineDate}T${deadlineTime}`);
-    if (deadlineDateTime <= startDateTime) {
-      toast({ title: "Deadline must be after start time", variant: "destructive" }); return;
+    if (!form.title || !form.startTime || !form.deadlineTime) {
+      toast.error("Title, start time, and deadline are required");
+      return;
     }
-    setIsLoading(true);
+    setSaving(true);
     try {
-      const si = await createScheduledInterview({
-        title,
-        jobId: selectedJobId,
-        startTime: startDateTime.toISOString(),
-        deadlineTime: deadlineDateTime.toISOString(),
-        codingQuestionsCount,
-        role,
-        difficulty,
-        interviewStyle,
+      const r = await fetch("/api/scheduled-interviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          jobId: form.jobId ? Number(form.jobId) : undefined,
+          codingQuestionsCount: Number(form.codingQuestionsCount),
+        }),
       });
-      toast({ title: "Interview scheduled!", description: "Add candidates to your scheduled interview." });
-      setLocation(`/employer/scheduled/${si.id}/candidates`);
-    } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
+      if (!r.ok) throw new Error();
+      toast.success("Interview scheduled successfully");
+      setLocation("/employer");
+    } catch {
+      toast.error("Failed to schedule interview");
+      setSaving(false);
     }
   };
 
-  const selClass = (active: boolean) => cn(
-    "p-3 rounded-xl border text-sm font-medium transition-all cursor-pointer",
-    active ? "border-primary bg-primary/10 text-primary" : "border-white/10 bg-black/20 text-muted-foreground hover:border-white/30"
+  const f = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm(prev => ({ ...prev, [key]: e.target.value }));
+
+  const SelectRow = ({ label, field, options }: { label: string; field: string; options: string[] }) => (
+    <div>
+      <label className="block text-sm font-medium mb-2">{label}</label>
+      <div className="flex gap-2 flex-wrap">
+        {options.map(o => (
+          <button key={o} type="button" onClick={() => setForm(prev => ({ ...prev, [field]: o }))}
+            className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all ${(form as any)[field] === o ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground hover:text-foreground"}`}
+          >{o}</button>
+        ))}
+      </div>
+    </div>
   );
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/employer")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-display font-bold">Schedule Interview</h1>
-          <p className="text-muted-foreground text-sm">Create an interview session and invite candidates by email.</p>
-        </div>
+    <div className="container mx-auto px-4 py-10 max-w-2xl">
+      <motion.div initial="hidden" animate="show" variants={fadeUp} custom={0} className="mb-8">
+        <Link href="/employer">
+          <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
+            <ChevronLeft className="h-4 w-4" />Back
+          </button>
+        </Link>
+        <h1 className="text-3xl font-display font-bold mb-1">Schedule Interview</h1>
+        <p className="text-muted-foreground">Create a batch interview session for multiple candidates</p>
+      </motion.div>
+
+      <div className="grid gap-5">
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={1} className="glass-panel rounded-2xl p-6 grid gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Interview Title *</label>
+            <input value={form.title} onChange={f("title")} placeholder="e.g. Q2 Engineering Hiring — Batch 1"
+              className="w-full rounded-xl bg-secondary/50 border border-border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+
+          {jobs.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Job Profile (optional)</label>
+              <select value={form.jobId} onChange={f("jobId")}
+                className="w-full rounded-xl bg-secondary/50 border border-border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="">No specific profile</option>
+                {jobs.map((j: any) => <option key={j.id} value={j.id}>{j.title}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Role</label>
+            <input value={form.role} onChange={f("role")} placeholder="e.g. Software Engineer"
+              className="w-full rounded-xl bg-secondary/50 border border-border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Start Time *</label>
+              <input type="datetime-local" value={form.startTime} onChange={f("startTime")}
+                className="w-full rounded-xl bg-secondary/50 border border-border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Deadline *</label>
+              <input type="datetime-local" value={form.deadlineTime} onChange={f("deadlineTime")}
+                className="w-full rounded-xl bg-secondary/50 border border-border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            </div>
+          </div>
+
+          <SelectRow label="Difficulty" field="difficulty" options={["Easy", "Medium", "Hard"]} />
+          <SelectRow label="Interview Style" field="interviewStyle" options={["Friendly", "Professional", "Strict"]} />
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Coding Questions</label>
+            <select value={form.codingQuestionsCount} onChange={f("codingQuestionsCount")}
+              className="w-full rounded-xl bg-secondary/50 border border-border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              {[0, 1, 2, 3].map(n => <option key={n} value={n}>{n === 0 ? "None" : `${n} question${n > 1 ? "s" : ""}`}</option>)}
+            </select>
+          </div>
+        </motion.div>
+
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={2}>
+          <button onClick={handleSubmit} disabled={saving}
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold btn-gradient disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {saving ? <><Loader2 className="h-5 w-5 animate-spin" />Scheduling...</> : <><Calendar className="h-5 w-5" />Schedule Interview</>}
+          </button>
+        </motion.div>
       </div>
-
-      <Card className="glass-panel border-white/10">
-        <CardContent className="p-6 space-y-6">
-          <div>
-            <label className="text-sm font-medium mb-2 block">Interview Title *</label>
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Senior Frontend Engineer — Q2 2025"
-              className="bg-black/20 border-white/10"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium mb-2 block">Job Profile <span className="text-muted-foreground font-normal">(optional)</span></label>
-            <p className="text-xs text-muted-foreground mb-3">Link to a job profile for skill-specific grading.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button onClick={() => setSelectedJobId(null)} className={selClass(selectedJobId === null)}>
-                <div className="flex justify-between items-center">
-                  <span>No specific profile</span>
-                  {selectedJobId === null && <Check className="h-4 w-4" />}
-                </div>
-              </button>
-              {jobs?.map((job) => (
-                <button key={job.id} onClick={() => setSelectedJobId(job.id)} className={selClass(selectedJobId === job.id)}>
-                  <div className="flex justify-between items-center">
-                    <div className="text-left">
-                      <p className="font-medium">{job.title}</p>
-                      <p className="text-xs opacity-60">{job.skills.length} skills</p>
-                    </div>
-                    {selectedJobId === job.id && <Check className="h-4 w-4" />}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-primary" /> Start Date *
-              </label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-black/20 border-white/10" />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                <Clock className="h-4 w-4 text-primary" /> Start Time *
-              </label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="bg-black/20 border-white/10" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-red-400" /> Deadline Date *
-              </label>
-              <Input type="date" value={deadlineDate} onChange={(e) => setDeadlineDate(e.target.value)} className="bg-black/20 border-white/10" />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                <Clock className="h-4 w-4 text-red-400" /> Deadline Time *
-              </label>
-              <Input type="time" value={deadlineTime} onChange={(e) => setDeadlineTime(e.target.value)} className="bg-black/20 border-white/10" />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium mb-2 block">Role</label>
-            <div className="grid grid-cols-3 gap-2">
-              {["Software Engineer", "Product Manager", "HR Interview"].map((r) => (
-                <button key={r} onClick={() => setRole(r)} className={selClass(role === r)}>{r}</button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium mb-2 block">Difficulty</label>
-            <div className="grid grid-cols-3 gap-2">
-              {["Easy", "Medium", "Hard"].map((d) => (
-                <button key={d} onClick={() => setDifficulty(d)} className={selClass(difficulty === d)}>{d}</button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium mb-2 block">Interview Style</label>
-            <div className="grid grid-cols-3 gap-2">
-              {["Friendly", "Strict", "Technical Deep Dive"].map((s) => (
-                <button key={s} onClick={() => setInterviewStyle(s)} className={selClass(interviewStyle === s)}>{s}</button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-              <Code className="h-4 w-4 text-primary" /> Coding Questions
-            </label>
-            <p className="text-xs text-muted-foreground mb-3">Number of coding questions at the end of the interview (0–2).</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[0, 1, 2].map((n) => (
-                <button key={n} onClick={() => setCodingQuestionsCount(n)} className={selClass(codingQuestionsCount === n)}>
-                  {n === 0 ? "None" : `${n} Question${n > 1 ? "s" : ""}`}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-white/10 flex justify-end">
-            <Button variant="gradient" onClick={handleSubmit} disabled={isLoading}>
-              {isLoading ? "Scheduling..." : "Schedule & Add Candidates →"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

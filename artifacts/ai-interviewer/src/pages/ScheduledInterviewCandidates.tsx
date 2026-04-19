@@ -1,240 +1,120 @@
-import { useState, useEffect } from "react";
-import { useRoute, useLocation, Link } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Users, Plus, Trash2, Copy, Mail, Calendar, Clock } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { useRoute, Link } from "wouter";
 import { motion } from "framer-motion";
+import { Users, Plus, Trash2, ChevronLeft, Copy, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-async function fetchSI(id: number) {
-  const r = await fetch(`${BASE}/api/scheduled-interviews/${id}`, { credentials: "include" });
-  if (!r.ok) throw new Error("Not found");
-  return r.json();
-}
-
-async function addCandidates(id: number, emails: string[]) {
-  const r = await fetch(`${BASE}/api/scheduled-interviews/${id}/candidates`, {
-    method: "POST", credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ emails }),
-  });
-  if (!r.ok) throw new Error("Failed to add");
-  return r.json();
-}
-
-async function removeCandidate(id: number, email: string) {
-  const r = await fetch(`${BASE}/api/scheduled-interviews/${id}/candidates`, {
-    method: "DELETE", credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
-  if (!r.ok) throw new Error("Failed to remove");
-  return r.json();
-}
-
-function extractEmails(text: string): string[] {
-  const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
-  const found = text.match(emailRegex) || [];
-  return [...new Set(found.map(e => e.toLowerCase().trim()))];
-}
-
-function formatDateTime(dt: string) {
-  return new Date(dt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
+const fadeUp = { hidden: { opacity: 0, y: 16 }, show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.4, delay: i * 0.07 } }) };
 
 export default function ScheduledInterviewCandidates() {
   const [, params] = useRoute("/employer/scheduled/:id/candidates");
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const id = parseInt(params?.id || "0");
-
+  const id = params?.id;
   const [si, setSi] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [pasteText, setPasteText] = useState("");
-  const [isAdding, setIsAdding] = useState(false);
-  const [showPasteArea, setShowPasteArea] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    fetchSI(id).then(setSi).catch(() => setLocation("/employer")).finally(() => setIsLoading(false));
+    if (!id) return;
+    fetch(`/api/scheduled-interviews/${id}`).then(r => r.json()).then(setSi);
   }, [id]);
 
-  const handleAdd = async () => {
-    const emails = extractEmails(pasteText);
-    if (emails.length === 0) {
-      toast({ title: "No valid emails found", description: "Paste emails separated by newlines or commas.", variant: "destructive" });
-      return;
-    }
-    setIsAdding(true);
+  const addCandidates = async () => {
+    const emails = emailInput.split(/[\n,;]+/).map(e => e.trim()).filter(e => e);
+    if (!emails.length) { toast.error("Enter at least one email"); return; }
+    setAdding(true);
     try {
-      const result = await addCandidates(id, emails);
-      setSi((prev: any) => ({ ...prev, candidates: result.candidates }));
-      setPasteText("");
-      setShowPasteArea(false);
-      toast({ title: `${result.added} candidate(s) added`, description: result.added === 0 ? "All emails already exist." : undefined });
-    } catch (e: any) {
-      toast({ title: "Failed to add candidates", description: e.message, variant: "destructive" });
-    } finally {
-      setIsAdding(false);
-    }
+      const r = await fetch(`/api/scheduled-interviews/${id}/candidates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails }),
+      });
+      const data = await r.json();
+      setSi((prev: any) => ({ ...prev, candidates: data.candidates }));
+      toast.success(`Added ${data.added} candidate(s)`);
+      setEmailInput("");
+    } catch { toast.error("Failed to add candidates"); }
+    setAdding(false);
   };
 
-  const handleRemove = async (email: string) => {
+  const removeCandidate = async (email: string) => {
     try {
-      const result = await removeCandidate(id, email);
-      setSi((prev: any) => ({ ...prev, candidates: result.candidates }));
-      toast({ title: "Candidate removed" });
-    } catch (e: any) {
-      toast({ title: "Failed to remove", description: e.message, variant: "destructive" });
-    }
+      const r = await fetch(`/api/scheduled-interviews/${id}/candidates`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await r.json();
+      setSi((prev: any) => ({ ...prev, candidates: data.candidates }));
+      toast.success("Removed candidate");
+    } catch { toast.error("Failed to remove"); }
   };
 
-  const previewEmails = extractEmails(pasteText);
-  const interviewLink = si ? `${window.location.origin}${BASE}/interview-access/${id}` : "";
-
-  if (isLoading) {
-    return <div className="flex h-64 items-center justify-center"><div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-  }
-
-  if (!si) return null;
+  const inviteLink = `${window.location.origin}/interview-access/${id}`;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/employer")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-display font-bold">{si.title}</h1>
-          <p className="text-muted-foreground text-sm">Manage candidate invitations</p>
-        </div>
-      </div>
+    <div className="container mx-auto px-4 py-10 max-w-3xl">
+      <motion.div initial="hidden" animate="show" variants={fadeUp} custom={0} className="mb-8">
+        <Link href="/employer">
+          <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
+            <ChevronLeft className="h-4 w-4" />Back to Dashboard
+          </button>
+        </Link>
+        <h1 className="text-3xl font-display font-bold mb-1">{si?.title || "Manage Candidates"}</h1>
+        <p className="text-muted-foreground">Add or remove candidates for this interview session</p>
+      </motion.div>
 
-      <Card className="glass-panel border-white/10">
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              <span>Start: <strong className="text-white">{formatDateTime(si.startTime)}</strong></span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-red-400" />
-              <span>Deadline: <strong className="text-white">{formatDateTime(si.deadlineTime)}</strong></span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="glass-panel border-white/10">
-        <CardContent className="p-4">
+      <div className="grid gap-5">
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={1} className="glass-panel rounded-2xl p-5">
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium flex items-center gap-2">
-              <Copy className="h-4 w-4 text-primary" /> Interview Link
-            </label>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-primary text-xs"
-              onClick={() => { navigator.clipboard.writeText(interviewLink); toast({ title: "Link copied!" }); }}
+            <h3 className="font-semibold text-sm">Invite Link</h3>
+            <button onClick={() => { navigator.clipboard.writeText(inviteLink); toast.success("Copied!"); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
             >
-              Copy Link
-            </Button>
+              <Copy className="h-3.5 w-3.5" />Copy Link
+            </button>
           </div>
-          <div className="bg-black/30 rounded-lg px-3 py-2 font-mono text-xs text-muted-foreground break-all">
-            {interviewLink}
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">Share this link with candidates. Only listed emails can access the interview.</p>
-        </CardContent>
-      </Card>
+          <code className="text-xs text-muted-foreground break-all bg-secondary/50 rounded-lg px-3 py-2 block">{inviteLink}</code>
+        </motion.div>
 
-      <Card className="glass-panel border-white/10">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold flex items-center gap-2">
-              <Users className="h-4 w-4" /> Candidates ({si.candidates?.length ?? 0})
-            </h2>
-            <Button variant="gradient" size="sm" className="gap-2" onClick={() => setShowPasteArea(!showPasteArea)}>
-              <Plus className="h-4 w-4" /> Add Candidates
-            </Button>
-          </div>
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={2} className="glass-panel rounded-2xl p-6">
+          <h3 className="font-display font-semibold mb-4 flex items-center gap-2">
+            <Plus className="h-5 w-5 text-primary" />Add Candidates
+          </h3>
+          <textarea
+            value={emailInput}
+            onChange={e => setEmailInput(e.target.value)}
+            placeholder="Enter emails separated by commas, semicolons, or new lines&#10;&#10;john@example.com&#10;jane@example.com"
+            rows={5}
+            className="w-full rounded-xl bg-secondary/50 border border-border px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted-foreground mb-4"
+          />
+          <button onClick={addCandidates} disabled={adding}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold btn-gradient text-sm disabled:opacity-60"
+          >
+            {adding ? <><Loader2 className="h-4 w-4 animate-spin" />Adding...</> : <><Plus className="h-4 w-4" />Add Candidates</>}
+          </button>
+        </motion.div>
 
-          {showPasteArea && (
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 space-y-3">
-              <div>
-                <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                  <Mail className="h-4 w-4" /> Paste Emails
-                </label>
-                <p className="text-xs text-muted-foreground mb-2">
-                  Paste email addresses — one per line, comma-separated, or copied from Excel. Duplicates are automatically removed.
-                </p>
-                <Textarea
-                  value={pasteText}
-                  onChange={(e) => setPasteText(e.target.value)}
-                  placeholder={"alice@company.com\nbob@company.com\ncharlie@company.com"}
-                  className="bg-black/20 border-white/10 min-h-[120px] font-mono text-sm"
-                />
-                {pasteText && (
-                  <p className="text-xs text-primary mt-1">
-                    {previewEmails.length} unique valid email{previewEmails.length !== 1 ? "s" : ""} detected
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button variant="gradient" size="sm" onClick={handleAdd} disabled={isAdding || previewEmails.length === 0}>
-                  {isAdding ? "Adding..." : `Add ${previewEmails.length} Email${previewEmails.length !== 1 ? "s" : ""}`}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => { setShowPasteArea(false); setPasteText(""); }}>Cancel</Button>
-              </div>
-            </motion.div>
-          )}
-
-          {si.candidates?.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Mail className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No candidates added yet.</p>
-              <p className="text-xs mt-1">Click "Add Candidates" to paste email addresses.</p>
-            </div>
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={3} className="glass-panel rounded-2xl p-6">
+          <h3 className="font-display font-semibold mb-4 flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            Candidates ({si?.candidates?.length || 0})
+          </h3>
+          {!si?.candidates?.length ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No candidates added yet</p>
           ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {si.candidates?.map((c: any, i: number) => (
-                <motion.div
-                  key={c.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: i * 0.03 }}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                      {c.email[0].toUpperCase()}
-                    </div>
-                    <span className="text-sm font-mono">{c.email}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all"
-                    onClick={() => handleRemove(c.email)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </motion.div>
+            <div className="grid gap-2">
+              {si.candidates.map((c: any) => (
+                <div key={c.id} className="flex items-center justify-between px-4 py-3 rounded-xl bg-secondary/40 border border-border">
+                  <span className="text-sm">{c.email}</span>
+                  <button onClick={() => removeCandidate(c.email)}
+                    className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  ><Trash2 className="h-3.5 w-3.5" /></button>
+                </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {new Date() >= new Date(si.startTime) && (
-        <div className="flex justify-end">
-          <Link href={`/employer/scheduled/${id}/results`}>
-            <Button variant="gradient">View Results →</Button>
-          </Link>
-        </div>
-      )}
+        </motion.div>
+      </div>
     </div>
   );
 }

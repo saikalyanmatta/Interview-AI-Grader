@@ -1,196 +1,135 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { useCreateJob } from "@workspace/api-client-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Plus, X, Save } from "lucide-react";
 import { motion } from "framer-motion";
+import { Plus, Trash2, Briefcase, ChevronLeft, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+const fadeUp = { hidden: { opacity: 0, y: 16 }, show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.4, delay: i * 0.07 } }) };
 
 export default function CreateJob() {
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const createMutation = useCreateJob();
-
   const [title, setTitle] = useState("");
   const [role, setRole] = useState("Software Engineer");
   const [description, setDescription] = useState("");
-  const [skills, setSkills] = useState<{name: string, requiredLevel: number, weight: number}[]>([
-    { name: "", requiredLevel: 5, weight: 50 }
-  ]);
+  const [skills, setSkills] = useState<{ name: string; requiredLevel: number; weight: number }[]>([]);
+  const [newSkill, setNewSkill] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const handleAddSkill = () => {
-    setSkills([...skills, { name: "", requiredLevel: 5, weight: 50 }]);
+  const addSkill = () => {
+    const s = newSkill.trim();
+    if (!s || skills.find(x => x.name.toLowerCase() === s.toLowerCase())) return;
+    setSkills(prev => [...prev, { name: s, requiredLevel: 7, weight: 50 }]);
+    setNewSkill("");
   };
 
-  const handleRemoveSkill = (index: number) => {
-    setSkills(skills.filter((_, i) => i !== index));
-  };
-
-  const handleSkillChange = (index: number, field: string, value: string | number) => {
-    const newSkills = [...skills];
-    newSkills[index] = { ...newSkills[index], [field]: value };
-    setSkills(newSkills);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validation
-    if (!title.trim()) return toast({ title: "Title required", variant: "destructive" });
-    const validSkills = skills.filter(s => s.name.trim() !== "");
-    if (validSkills.length === 0) return toast({ title: "At least one skill required", variant: "destructive" });
-
+  const handleSubmit = async () => {
+    if (!title.trim() || !description.trim()) { toast.error("Title and description are required"); return; }
+    setSaving(true);
     try {
-      await createMutation.mutateAsync({
-        data: { title, role, description, skills: validSkills } as any
+      const r = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, role, description, skills }),
       });
-      toast({ title: "Job profile created" });
+      if (!r.ok) throw new Error();
+      toast.success("Job profile created");
       setLocation("/employer");
-    } catch (err: any) {
-      toast({ title: "Failed to create", description: err.message, variant: "destructive" });
+    } catch {
+      toast.error("Failed to create job");
+      setSaving(false);
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto py-8">
-      <Link href="/employer">
-        <Button variant="ghost" size="sm" className="mb-6 text-muted-foreground hover:text-white -ml-4">
-          <ChevronLeft className="h-4 w-4 mr-1" /> Back to Profiles
-        </Button>
-      </Link>
+    <div className="container mx-auto px-4 py-10 max-w-2xl">
+      <motion.div initial="hidden" animate="show" variants={fadeUp} custom={0} className="mb-8">
+        <Link href="/employer">
+          <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
+            <ChevronLeft className="h-4 w-4" />Back to Dashboard
+          </button>
+        </Link>
+        <h1 className="text-3xl font-display font-bold mb-1">Create Job Profile</h1>
+        <p className="text-muted-foreground">Define the role requirements for AI-powered interviews</p>
+      </motion.div>
 
-      <div className="mb-8">
-        <h1 className="text-3xl font-display font-bold">Create Job Profile</h1>
-        <p className="text-muted-foreground mt-2">Define the role and specific skills the AI should evaluate.</p>
+      <div className="grid gap-5">
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={1} className="glass-panel rounded-2xl p-6 grid gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Job Title *</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Senior Frontend Developer"
+              className="w-full rounded-xl bg-secondary/50 border border-border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Role / Function</label>
+            <input value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. Software Engineer"
+              className="w-full rounded-xl bg-secondary/50 border border-border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Job Description *</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4}
+              placeholder="Describe the role, responsibilities, and requirements..."
+              className="w-full rounded-xl bg-secondary/50 border border-border px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+        </motion.div>
+
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={2} className="glass-panel rounded-2xl p-6">
+          <h3 className="font-display font-semibold mb-4">Required Skills</h3>
+          <div className="flex gap-2 mb-4">
+            <input
+              value={newSkill}
+              onChange={e => setNewSkill(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addSkill())}
+              placeholder="Add a skill (e.g. React, Python, SQL...)"
+              className="flex-1 rounded-xl bg-secondary/50 border border-border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <button onClick={addSkill} className="px-4 py-2.5 rounded-xl btn-gradient text-sm font-medium flex items-center gap-1">
+              <Plus className="h-4 w-4" />Add
+            </button>
+          </div>
+
+          {skills.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No skills added yet. Add skills to make interviews more targeted.</p>
+          ) : (
+            <div className="grid gap-3">
+              {skills.map((skill, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/40 border border-border">
+                  <span className="font-medium text-sm flex-1">{skill.name}</span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">Level:</span>
+                      <select value={skill.requiredLevel}
+                        onChange={e => setSkills(prev => prev.map((s, j) => j === i ? { ...s, requiredLevel: Number(e.target.value) } : s))}
+                        className="rounded-lg bg-secondary border border-border px-2 py-1 text-xs focus:outline-none"
+                      >
+                        {[...Array(10)].map((_, n) => <option key={n + 1} value={n + 1}>{n + 1}/10</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">Weight:</span>
+                      <input type="number" min={0} max={100} value={skill.weight}
+                        onChange={e => setSkills(prev => prev.map((s, j) => j === i ? { ...s, weight: Number(e.target.value) } : s))}
+                        className="w-14 rounded-lg bg-secondary border border-border px-2 py-1 text-xs focus:outline-none text-center"
+                      />
+                      <span className="text-xs text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                  <button onClick={() => setSkills(prev => prev.filter((_, j) => j !== i))} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={3}>
+          <button onClick={handleSubmit} disabled={saving}
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold btn-gradient disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {saving ? <><Loader2 className="h-5 w-5 animate-spin" />Saving...</> : <><Briefcase className="h-5 w-5" />Create Job Profile</>}
+          </button>
+        </motion.div>
       </div>
-
-      <form onSubmit={handleSubmit}>
-        <Card className="glass-panel border-white/10 overflow-hidden">
-          <CardContent className="p-8 space-y-8">
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block text-foreground/90">Job Title</label>
-                <Input 
-                  placeholder="e.g. Senior Frontend Engineer" 
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block text-foreground/90">Role Selection</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {["Software Engineer", "Product Manager", "HR Interview"].map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setRole(option)}
-                      className={`rounded-xl border px-4 py-3 text-sm font-medium transition-all ${role === option ? "border-primary bg-primary/10 text-primary" : "border-white/10 bg-black/20 text-muted-foreground hover:border-white/30"}`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium mb-2 block text-foreground/90">Role Description</label>
-                <Textarea 
-                  placeholder="Briefly describe the responsibilities and context..." 
-                  className="min-h-[100px]"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="pt-6 border-t border-white/10">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold font-display">Required Skills</h3>
-                  <p className="text-sm text-muted-foreground">Add skills and set the minimum proficiency (1-10).</p>
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={handleAddSkill} className="gap-1 bg-white/5 border-white/10">
-                  <Plus className="h-4 w-4" /> Add Skill
-                </Button>
-              </div>
-
-              <div className="space-y-3">
-                {skills.map((skill, index) => (
-                  <motion.div 
-                    key={index}
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="flex items-center gap-4 bg-black/20 p-3 rounded-xl border border-white/5"
-                  >
-                    <div className="flex-1">
-                      <Input 
-                        placeholder="e.g. React.js, System Design, Communication" 
-                        value={skill.name}
-                        onChange={(e) => handleSkillChange(index, "name", e.target.value)}
-                        className="bg-transparent border-white/10"
-                      />
-                    </div>
-                    <div className="w-32 flex flex-col gap-1">
-                      <div className="flex justify-between text-xs text-muted-foreground px-1">
-                        <span>Lvl {skill.requiredLevel}</span>
-                        <span>/ 10</span>
-                      </div>
-                      <input 
-                        type="range" 
-                        min="1" max="10" 
-                        value={skill.requiredLevel}
-                        onChange={(e) => handleSkillChange(index, "requiredLevel", parseInt(e.target.value))}
-                        className="w-full accent-primary"
-                      />
-                    </div>
-                    <div className="w-32 flex flex-col gap-1">
-                      <div className="flex justify-between text-xs text-muted-foreground px-1">
-                        <span>Weight</span>
-                        <span>{skill.weight}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0" max="100"
-                        value={skill.weight}
-                        onChange={(e) => handleSkillChange(index, "weight", parseInt(e.target.value))}
-                        className="w-full accent-primary"
-                      />
-                    </div>
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="icon" 
-                      className="text-muted-foreground hover:text-red-400 shrink-0"
-                      onClick={() => handleRemoveSkill(index)}
-                      disabled={skills.length === 1}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-6 flex justify-end">
-              <Button 
-                type="submit" 
-                size="lg" 
-                variant="gradient" 
-                className="w-full sm:w-auto shadow-xl"
-                isLoading={createMutation.isPending}
-              >
-                <Save className="h-5 w-5 mr-2" />
-                Save Profile
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </form>
     </div>
   );
 }

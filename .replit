@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "python-3.11"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -35,7 +35,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run dev & PORT=19472 BASE_PATH=/ pnpm --filter @workspace/ai-interviewer run dev"
+args = "PORT=8080 python artifacts/api-server-py/main.py & PORT=19472 BASE_PATH=/ pnpm --filter @workspace/ai-interviewer run dev"
 waitForPort = 19472
 
 [agent]
@@ -45,3 +45,7 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[nix]
+channel = "stable-25_05"
+packages = ["cargo", "libiconv", "libxcrypt", "openssl", "pkg-config", "rustc"]

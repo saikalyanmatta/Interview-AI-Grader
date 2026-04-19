@@ -1,8 +1,9 @@
 import React from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "sonner";
 import { Layout } from "@/components/Layout";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Landing from "@/pages/Landing";
 import CandidateDashboard from "@/pages/CandidateDashboard";
@@ -22,10 +23,7 @@ import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
+    queries: { retry: 1, refetchOnWindowFocus: false },
   },
 });
 
@@ -33,19 +31,38 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   const { isAuthenticated, isLoading, login } = useAuth();
 
   if (isLoading) {
-    return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 animate-pulse">
+            <Loader2 className="h-6 w-6 animate-spin text-white" />
+          </div>
+          <p className="text-muted-foreground text-sm">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="flex flex-col h-[60vh] items-center justify-center gap-4 text-center max-w-md mx-auto">
-        <h2 className="text-2xl font-bold font-display">Authentication Required</h2>
-        <p className="text-muted-foreground">Please sign in to access this page.</p>
+      <div className="flex flex-col min-h-[70vh] items-center justify-center gap-6 text-center px-4">
+        <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-500/25">
+          <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <div>
+          <h2 className="text-2xl font-display font-bold mb-2">Authentication Required</h2>
+          <p className="text-muted-foreground max-w-sm">Sign in to access this page and start your AI-powered interview journey.</p>
+        </div>
         <button
           onClick={login}
-          className="mt-4 px-6 py-2 rounded-lg bg-primary text-white font-medium hover:bg-primary/90 transition-colors"
+          className="px-8 py-3 rounded-xl font-semibold btn-gradient flex items-center gap-2 text-sm"
         >
-          Sign In
+          Sign In to Continue
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
         </button>
       </div>
     );
@@ -76,18 +93,20 @@ function Router() {
 
 function App() {
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Layout>
-            <ErrorBoundary>
-              <Router />
-            </ErrorBoundary>
-          </Layout>
-        </WouterRouter>
-        <Toaster />
-      </QueryClientProvider>
-    </ErrorBoundary>
+    <ThemeProvider>
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Layout>
+              <ErrorBoundary>
+                <Router />
+              </ErrorBoundary>
+            </Layout>
+          </WouterRouter>
+          <Toaster richColors position="top-right" />
+        </QueryClientProvider>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }
 

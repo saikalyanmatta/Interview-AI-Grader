@@ -1,297 +1,266 @@
+import React from "react";
 import { useRoute, Link } from "wouter";
-import { useGetInterviewReport } from "@workspace/api-client-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TrendingUp, AlertTriangle, CheckCircle, ChevronLeft, BrainCircuit, Eye, MessageSquare, Zap } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { Loader2, CheckCircle, AlertTriangle, TrendingUp, ChevronLeft, BrainCircuit, Eye, MessageSquare, Zap } from "lucide-react";
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
+
+const fadeUp = { hidden: { opacity: 0, y: 16 }, show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.4, delay: i * 0.07 } }) };
+
+function ScoreCircle({ value, label, color }: { value: number; label: string; color: string }) {
+  const r = 40, circ = 2 * Math.PI * r;
+  const offset = circ - (circ * value) / 100;
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative inline-flex items-center justify-center w-24 h-24">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r={r} strokeWidth="8" fill="transparent" stroke="currentColor" className="text-border" />
+          <circle cx="50" cy="50" r={r} strokeWidth="8" fill="transparent" stroke={color} strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" className="transition-all duration-700" />
+        </svg>
+        <span className="absolute text-xl font-bold font-display">{value}</span>
+      </div>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function ScoreBar({ score }: { score: number }) {
+  const color = score >= 75 ? "bg-emerald-500" : score >= 50 ? "bg-amber-500" : "bg-red-500";
+  return (
+    <div className="h-1.5 rounded-full bg-border overflow-hidden">
+      <div className={`h-full rounded-full ${color} transition-all duration-700`} style={{ width: `${score}%` }} />
+    </div>
+  );
+}
 
 export default function InterviewReport() {
   const [, params] = useRoute("/interview/:id/report");
   const id = parseInt(params?.id || "0");
 
-  const { data: report, isLoading } = useGetInterviewReport(id, {
-    query: { retry: 3 },
+  const { data: report, isLoading } = useQuery({
+    queryKey: ["report", id],
+    queryFn: async () => {
+      const r = await fetch(`/api/interviews/${id}/report`);
+      if (!r.ok) throw new Error("Not found");
+      return r.json();
+    },
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col h-[60vh] items-center justify-center gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <h2 className="text-xl font-display animate-pulse">Generating comprehensive analysis...</h2>
-        <p className="text-muted-foreground text-sm">This may take a moment.</p>
+  if (isLoading) return (
+    <div className="flex flex-col h-[70vh] items-center justify-center gap-4">
+      <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center animate-pulse">
+        <Loader2 className="h-7 w-7 animate-spin text-primary" />
       </div>
-    );
-  }
+      <h2 className="text-lg font-display font-semibold animate-pulse">Generating your analysis...</h2>
+      <p className="text-muted-foreground text-sm">This may take a moment.</p>
+    </div>
+  );
 
-  if (!report) {
-    return (
-      <div className="text-center py-20">
-        <h2 className="text-2xl font-bold mb-4">Report not available</h2>
-        <Link href="/dashboard"><Button variant="outline">Back to Dashboard</Button></Link>
-      </div>
-    );
-  }
+  if (!report) return (
+    <div className="text-center py-20">
+      <h2 className="text-2xl font-bold mb-4">Report not available</h2>
+      <Link href="/dashboard"><button className="px-5 py-2.5 rounded-xl border border-border hover:bg-secondary transition-colors text-sm">Back to Dashboard</button></Link>
+    </div>
+  );
 
-  const radarData = report.skillScores.map((s) => ({ subject: s.skill.length > 10 ? s.skill.slice(0, 10) + "…" : s.skill, score: s.score, fullMark: 100 }));
-
-  const getRec = (rec: string) => {
-    if (rec === "hire") return { label: "Strong Hire", icon: <CheckCircle className="w-4 h-4 mr-1.5" />, cls: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" };
-    if (rec === "no_hire") return { label: "Do Not Hire", icon: <AlertTriangle className="w-4 h-4 mr-1.5" />, cls: "bg-red-500/20 text-red-400 border-red-500/30" };
-    return { label: "Needs Growth", icon: <TrendingUp className="w-4 h-4 mr-1.5" />, cls: "bg-amber-500/20 text-amber-400 border-amber-500/30" };
+  const recMap: Record<string, { label: string; icon: any; cls: string }> = {
+    hire: { label: "Strong Hire", icon: CheckCircle, cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" },
+    no_hire: { label: "Do Not Hire", icon: AlertTriangle, cls: "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20" },
+    maybe: { label: "Needs Growth", icon: TrendingUp, cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" },
   };
+  const rec = recMap[report.recommendation] || recMap.maybe;
+  const RecIcon = rec.icon;
 
-  const getBar = (score: number) => score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-amber-500" : "bg-red-500";
-  const getStutterBar = (s: number) => s < 25 ? "bg-emerald-500" : s < 55 ? "bg-amber-500" : "bg-red-500";
-  const getStutterLabel = (s: number) => s < 25 ? "Fluent" : s < 55 ? "Moderate disfluency" : "High disfluency";
+  const radarData = (report.skillScores || []).map((s: any) => ({
+    subject: s.skill.length > 10 ? s.skill.slice(0, 10) + "…" : s.skill,
+    score: s.score, fullMark: 100,
+  }));
 
-  const rec = getRec(report.recommendation);
-  const confidenceScore = (report as any).confidenceScore ?? 70;
-  const confidenceNotes = (report as any).confidenceNotes ?? "";
-  const stutterAnalysis: Array<{ skill: string; avgStutterScore: number; questionsAsked: number; notes: string }> = (report as any).stutterAnalysis ?? [];
-  const behavioralScore = (report as any).behavioralScore ?? 70;
-  const behavioralAnalysis = (report as any).behavioralAnalysis ?? {};
-  const communicationAnalysis = (report as any).communicationAnalysis ?? {};
-  const answerQualityBreakdown: Array<{ question: string; yourAnswer: string; rating: number; suggestedBetterAnswer: string }> = (report as any).answerQualityBreakdown ?? [];
+  const confidenceScore = report.confidenceScore ?? 70;
+  const confidenceNotes = report.confidenceNotes ?? "";
+  const stutterAnalysis = report.stutterAnalysis ?? [];
+  const behavioralScore = report.behavioralScore ?? 70;
+  const behavioralAnalysis = report.behavioralAnalysis ?? {};
+  const communicationAnalysis = report.communicationAnalysis ?? {};
+  const answerQuality = report.answerQualityBreakdown ?? [];
+  const [activeTab, setActiveTab] = React.useState("overview");
 
-  const scoreCircle = (value: number, label: string, color: string) => {
-    const r = 40;
-    const circ = 2 * Math.PI * r;
-    const offset = circ - (circ * value) / 100;
-    return (
-      <div className="flex flex-col items-center gap-2">
-        <div className="relative inline-flex items-center justify-center w-24 h-24">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r={r} stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/5" />
-            <circle cx="50" cy="50" r={r} stroke={color} strokeWidth="8" fill="transparent" strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" className="transition-all duration-700" />
-          </svg>
-          <span className="absolute text-xl font-bold font-display">{value}</span>
-        </div>
-        <span className="text-xs text-muted-foreground">{label}</span>
-      </div>
-    );
-  };
+  const tabs = ["overview", "communication", "behavioral", "suggestions"];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-16">
-      <Link href="/dashboard">
-        <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-white -ml-4">
-          <ChevronLeft className="h-4 w-4 mr-1" /> Back to Dashboard
-        </Button>
-      </Link>
-
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-          <h1 className="text-4xl font-display font-bold tracking-tight">Interview Results</h1>
-          <p className="text-muted-foreground mt-2">Full AI-powered assessment of your performance.</p>
+    <div className="container mx-auto px-4 py-10 max-w-5xl space-y-8 pb-20">
+      <motion.div initial="hidden" animate="show" variants={fadeUp} custom={0}>
+        <Link href="/dashboard">
+          <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6">
+            <ChevronLeft className="h-4 w-4" />Back to Dashboard
+          </button>
+        </Link>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-display font-bold mb-1">Interview Results</h1>
+            <p className="text-muted-foreground">Full AI-powered performance assessment</p>
+          </div>
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold ${rec.cls}`}>
+            <RecIcon className="h-4 w-4" />
+            {rec.label}
+          </div>
         </div>
-        <Badge className={cn("px-4 py-1.5 text-sm flex items-center", rec.cls)}>{rec.icon}{rec.label}</Badge>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="glass-panel col-span-1 md:col-span-2">
-          <CardContent className="p-8">
-            <h3 className="text-lg font-medium text-muted-foreground mb-6">Core Scores</h3>
-            <div className="flex flex-wrap items-center gap-10">
-              {scoreCircle(report.overallScore, "Overall", "#8b5cf6")}
-              {scoreCircle(report.englishScore, "English", "#06b6d4")}
-              {scoreCircle(behavioralScore, "Behavioral", "#f59e0b")}
-              {scoreCircle(confidenceScore, "Confidence", "#10b981")}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel">
-          <CardContent className="p-8 h-full flex flex-col">
-            <h3 className="text-lg font-medium text-muted-foreground mb-4">Skill Radar</h3>
-            {radarData.length > 0 ? (
-              <div className="flex-1" style={{ minHeight: 160 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={radarData}>
-                    <PolarGrid stroke="rgba(255,255,255,0.1)" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10 }} />
-                    <Radar name="Score" dataKey="score" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.25} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground/40 text-sm">No skill data</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel col-span-1 md:col-span-3 bg-gradient-to-br from-indigo-500/10 to-transparent">
-          <CardContent className="p-8">
-            <h3 className="text-xl font-display font-semibold mb-4 flex items-center gap-2">
-              <BrainCircuit className="text-primary h-5 w-5" /> Executive Summary
-            </h3>
-            <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{report.feedback}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="overview" className="glass-panel rounded-3xl border border-white/5 p-2">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 bg-black/30">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="communication">Communication</TabsTrigger>
-          <TabsTrigger value="behavioral">Behavioral</TabsTrigger>
-          <TabsTrigger value="suggestions">Suggestions</TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview" className="p-4">
-          <p className="text-sm text-muted-foreground leading-relaxed">{report.feedback}</p>
-        </TabsContent>
-        <TabsContent value="communication" className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-black/20 border-white/5"><CardContent className="p-5"><div className="text-3xl font-bold text-cyan-400">{communicationAnalysis.clarityScore ?? report.englishScore}</div><p className="text-xs text-muted-foreground mt-1">Clarity score</p></CardContent></Card>
-            <Card className="bg-black/20 border-white/5"><CardContent className="p-5"><div className="text-3xl font-bold text-amber-400">{communicationAnalysis.totalFillers ?? 0}</div><p className="text-xs text-muted-foreground mt-1">Detected filler words</p></CardContent></Card>
-            <Card className="bg-black/20 border-white/5"><CardContent className="p-5"><div className="text-3xl font-bold text-violet-400">{communicationAnalysis.sentenceStructureScore ?? 70}</div><p className="text-xs text-muted-foreground mt-1">Sentence structure</p></CardContent></Card>
+      <motion.div initial="hidden" animate="show" variants={fadeUp} custom={1} className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="glass-panel rounded-2xl p-6 md:col-span-2">
+          <h3 className="font-semibold text-muted-foreground text-sm mb-6">Core Scores</h3>
+          <div className="flex flex-wrap items-center gap-8">
+            <ScoreCircle value={report.overallScore} label="Overall" color="#8b5cf6" />
+            <ScoreCircle value={report.englishScore} label="English" color="#06b6d4" />
+            <ScoreCircle value={behavioralScore} label="Behavioral" color="#f59e0b" />
+            <ScoreCircle value={confidenceScore} label="Confidence" color="#10b981" />
           </div>
-          <p className="text-sm text-muted-foreground mt-4">{communicationAnalysis.summary ?? report.englishFeedback}</p>
-        </TabsContent>
-        <TabsContent value="behavioral" className="p-4 space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="text-5xl font-bold font-display text-amber-400">{behavioralScore}</div>
-            <div>
-              <p className="text-sm text-muted-foreground">STAR completeness, problem solving, and emotional intelligence.</p>
-              <Progress value={behavioralScore} className="h-2 mt-2" indicatorClassName={getBar(behavioralScore)} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="bg-black/20 border-white/5"><CardContent className="p-5"><h4 className="font-semibold mb-2">Missing STAR Elements</h4><p className="text-sm text-muted-foreground">{Array.isArray(behavioralAnalysis.missingElements) && behavioralAnalysis.missingElements.length > 0 ? behavioralAnalysis.missingElements.join(", ") : "No major missing elements detected."}</p></CardContent></Card>
-            <Card className="bg-black/20 border-white/5"><CardContent className="p-5"><h4 className="font-semibold mb-2">Improvement Suggestions</h4><p className="text-sm text-muted-foreground">{Array.isArray(behavioralAnalysis.suggestions) ? behavioralAnalysis.suggestions.join(" ") : behavioralAnalysis.starCompleteness ?? "Use clear Situation, Task, Action, and Result framing."}</p></CardContent></Card>
-          </div>
-        </TabsContent>
-        <TabsContent value="suggestions" className="p-4 space-y-4">
-          {answerQualityBreakdown.length > 0 ? answerQualityBreakdown.map((item, index) => (
-            <Card key={index} className="bg-black/20 border-white/5">
-              <CardContent className="p-5 space-y-3">
-                <div className="flex justify-between gap-4">
-                  <h4 className="font-semibold">Question {index + 1}</h4>
-                  <Badge variant="secondary">{item.rating}/100</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">{item.question}</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><h5 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Your Answer</h5><p className="text-sm leading-relaxed">{item.yourAnswer}</p></div>
-                  <div><h5 className="text-xs uppercase tracking-wider text-primary mb-2">Suggested Better Answer</h5><p className="text-sm leading-relaxed">{item.suggestedBetterAnswer}</p></div>
-                </div>
-              </CardContent>
-            </Card>
-          )) : (
-            <p className="text-sm text-muted-foreground">Suggested improved answers will appear after the AI completes a full transcript analysis.</p>
+        </div>
+        <div className="glass-panel rounded-2xl p-6">
+          <h3 className="font-semibold text-muted-foreground text-sm mb-4">Skill Radar</h3>
+          {radarData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={160}>
+              <RadarChart data={radarData}>
+                <PolarGrid stroke="hsl(var(--border))" />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} />
+                <Radar dataKey="score" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.25} />
+              </RadarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-40 flex items-center justify-center text-muted-foreground/40 text-sm">No skill data</div>
           )}
-        </TabsContent>
-      </Tabs>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="glass-panel">
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Eye className="h-5 w-5 text-emerald-400" /> Confidence Analysis
-            </h3>
-            <div className="flex items-center gap-4 mb-4">
-              <div className="text-4xl font-bold font-display text-emerald-400">{confidenceScore}</div>
-              <div className="flex-1">
-                <Progress value={confidenceScore} className="h-2" indicatorClassName={getBar(confidenceScore)} />
-                <p className="text-xs text-muted-foreground mt-1">Based on facial analysis throughout the interview</p>
-              </div>
-            </div>
-            {confidenceNotes && (
-              <p className="text-sm text-muted-foreground leading-relaxed border-t border-white/10 pt-4">{confidenceNotes}</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel">
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-cyan-400" /> English Fluency
-            </h3>
-            <div className="flex items-center gap-4 mb-4">
-              <div className="text-4xl font-bold font-display text-cyan-400">{report.englishScore}</div>
-              <div className="flex-1">
-                <Progress value={report.englishScore} className="h-2" indicatorClassName={getBar(report.englishScore)} />
-                <p className="text-xs text-muted-foreground mt-1">Grammar, articulation, vocabulary</p>
-              </div>
-            </div>
-            {report.englishFeedback && (
-              <p className="text-sm text-muted-foreground leading-relaxed border-t border-white/10 pt-4">{report.englishFeedback}</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {stutterAnalysis.length > 0 && (
-        <div>
-          <h3 className="text-2xl font-display font-bold mb-4 flex items-center gap-2">
-            <Zap className="h-5 w-5 text-amber-400" /> Fluency Breakdown by Topic
-          </h3>
-          <div className="space-y-3">
-            {stutterAnalysis.map((item, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                <Card className="bg-black/20 border-white/5">
-                  <CardContent className="p-5">
-                    <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-                      <div className="w-full md:w-1/3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-semibold">{item.skill}</h4>
-                          <span className="text-xs text-muted-foreground">({item.questionsAsked} q{item.questionsAsked !== 1 ? "s" : ""})</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className={cn("text-sm font-semibold", item.avgStutterScore < 25 ? "text-emerald-400" : item.avgStutterScore < 55 ? "text-amber-400" : "text-red-400")}>
-                            {getStutterLabel(item.avgStutterScore)}
-                          </span>
-                        </div>
-                        <Progress value={item.avgStutterScore} className="h-1.5 mt-1" indicatorClassName={getStutterBar(item.avgStutterScore)} />
-                      </div>
-                      <div className="w-full md:w-2/3 md:pl-6 md:border-l border-white/10">
-                        <p className="text-sm text-muted-foreground leading-relaxed">{item.notes}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
         </div>
-      )}
+        <div className="glass-panel rounded-2xl p-6 md:col-span-3 bg-gradient-to-br from-primary/5 to-transparent">
+          <h3 className="font-display font-semibold mb-3 flex items-center gap-2"><BrainCircuit className="h-5 w-5 text-primary" />Executive Summary</h3>
+          <p className="text-foreground/90 leading-relaxed">{report.feedback}</p>
+        </div>
+      </motion.div>
 
-      <div>
-        <h3 className="text-2xl font-display font-bold mb-4">Skill-by-Skill Breakdown</h3>
-        <div className="space-y-4">
-          {report.skillScores.map((skill, index) => (
-            <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.07 }}>
-              <Card className="bg-black/20 border-white/5 hover:bg-black/30 transition-colors">
-                <CardContent className="p-6">
-                  <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
-                    <div className="w-full md:w-1/4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h4 className="font-semibold text-lg">{skill.skill}</h4>
-                        {skill.meetRequirement === true && <Badge className="h-5 text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Passed</Badge>}
-                        {skill.meetRequirement === false && <Badge variant="destructive" className="h-5 text-[10px]">Failed</Badge>}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl font-bold font-display">{skill.score}</span>
-                        <Progress value={skill.score} className="h-1.5 flex-1" indicatorClassName={getBar(skill.score)} />
-                      </div>
-                    </div>
-                    <div className="w-full md:w-3/4 pl-0 md:pl-6 md:border-l border-white/10">
-                      <p className="text-sm text-muted-foreground leading-relaxed">{skill.feedback}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
+      <motion.div initial="hidden" animate="show" variants={fadeUp} custom={2} className="glass-panel rounded-2xl overflow-hidden">
+        <div className="flex border-b border-border p-1 gap-1">
+          {tabs.map(t => (
+            <button key={t} onClick={() => setActiveTab(t)}
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all capitalize ${activeTab === t ? "bg-background border border-border shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >{t}</button>
           ))}
         </div>
+        <div className="p-6">
+          {activeTab === "overview" && <p className="text-sm text-muted-foreground leading-relaxed">{report.feedback}</p>}
+          {activeTab === "communication" && (
+            <div className="grid gap-4">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: communicationAnalysis.clarityScore ?? report.englishScore, label: "Clarity", color: "text-cyan-500" },
+                  { value: communicationAnalysis.totalFillers ?? 0, label: "Filler Words", color: "text-amber-500" },
+                  { value: communicationAnalysis.sentenceStructureScore ?? 70, label: "Sentence Structure", color: "text-purple-500" },
+                ].map((s, i) => (
+                  <div key={i} className="p-4 rounded-xl bg-secondary/50 border border-border text-center">
+                    <div className={`font-display font-bold text-2xl ${s.color}`}>{s.value}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm text-muted-foreground">{communicationAnalysis.summary ?? report.englishFeedback}</p>
+            </div>
+          )}
+          {activeTab === "behavioral" && (
+            <div className="grid gap-4">
+              <div className="flex items-center gap-5 p-4 rounded-xl bg-secondary/50">
+                <div className="font-display font-bold text-4xl text-amber-500">{behavioralScore}</div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground mb-2">STAR completeness, problem solving, and emotional intelligence</p>
+                  <ScoreBar score={behavioralScore} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 rounded-xl bg-secondary/50 border border-border">
+                  <h4 className="font-semibold text-sm mb-2">Missing STAR Elements</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {Array.isArray(behavioralAnalysis.missingElements) && behavioralAnalysis.missingElements.length > 0
+                      ? behavioralAnalysis.missingElements.join(", ")
+                      : "No major missing elements detected."}
+                  </p>
+                </div>
+                <div className="p-4 rounded-xl bg-secondary/50 border border-border">
+                  <h4 className="font-semibold text-sm mb-2">Suggestions</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {Array.isArray(behavioralAnalysis.suggestions) ? behavioralAnalysis.suggestions[0] : behavioralAnalysis.starCompleteness ?? "Use clear STAR framing."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          {activeTab === "suggestions" && (
+            answerQuality.length > 0 ? (
+              <div className="grid gap-4">
+                {answerQuality.map((item: any, i: number) => (
+                  <div key={i} className="p-5 rounded-xl bg-secondary/50 border border-border">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-sm">Question {i + 1}</h4>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${item.rating >= 75 ? "badge-hire" : item.rating >= 50 ? "badge-maybe" : "badge-no-hire"}`}>{item.rating}/100</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">{item.question}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="p-3 rounded-lg bg-background/50">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Your Answer</p>
+                        <p className="text-sm leading-relaxed">{item.yourAnswer}</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                        <p className="text-[10px] uppercase tracking-wider text-primary mb-1.5">Suggested Better Answer</p>
+                        <p className="text-sm leading-relaxed">{item.suggestedBetterAnswer}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-sm text-muted-foreground">Suggestions will appear here after full transcript analysis.</p>
+          )}
+        </div>
+      </motion.div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={3} className="glass-panel rounded-2xl p-6">
+          <h3 className="font-semibold mb-4 flex items-center gap-2"><Eye className="h-5 w-5 text-emerald-500" />Confidence Analysis</h3>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="font-display font-bold text-4xl text-emerald-500">{confidenceScore}</div>
+            <div className="flex-1"><ScoreBar score={confidenceScore} /><p className="text-xs text-muted-foreground mt-1">Based on facial analysis</p></div>
+          </div>
+          {confidenceNotes && <p className="text-sm text-muted-foreground pt-4 border-t border-border">{confidenceNotes}</p>}
+        </motion.div>
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={4} className="glass-panel rounded-2xl p-6">
+          <h3 className="font-semibold mb-4 flex items-center gap-2"><MessageSquare className="h-5 w-5 text-cyan-500" />English Fluency</h3>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="font-display font-bold text-4xl text-cyan-500">{report.englishScore}</div>
+            <div className="flex-1"><ScoreBar score={report.englishScore} /><p className="text-xs text-muted-foreground mt-1">Grammar, articulation, vocabulary</p></div>
+          </div>
+          {report.englishFeedback && <p className="text-sm text-muted-foreground pt-4 border-t border-border">{report.englishFeedback}</p>}
+        </motion.div>
       </div>
 
-      <div className="flex justify-center pt-4">
+      {report.skillScores?.length > 0 && (
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={5}>
+          <h2 className="text-xl font-display font-bold mb-4">Skill Breakdown</h2>
+          <div className="grid gap-3">
+            {report.skillScores.map((skill: any, i: number) => (
+              <div key={i} className="glass-panel rounded-2xl p-5 flex gap-5 items-start">
+                <div className="w-32 flex-shrink-0">
+                  <div className="font-display font-bold text-2xl mb-1">{skill.score}</div>
+                  <ScoreBar score={skill.score} />
+                  <p className="font-semibold text-sm mt-2">{skill.skill}</p>
+                  {skill.meetRequirement === true && <span className="text-xs text-emerald-500 font-medium">✓ Passed</span>}
+                  {skill.meetRequirement === false && <span className="text-xs text-red-500 font-medium">✗ Failed</span>}
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed border-l border-border pl-5">{skill.feedback}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      <div className="flex justify-center">
         <Link href="/dashboard">
-          <Button variant="gradient" size="lg">Back to Dashboard</Button>
+          <button className="px-8 py-3.5 rounded-xl font-bold btn-gradient">Back to Dashboard</button>
         </Link>
       </div>
     </div>
