@@ -83,6 +83,26 @@ async def get_scheduled(si_id: int, request: Request, db: DBSession = Depends(ge
     return result
 
 
+@router.patch("/scheduled-interviews/{si_id}")
+async def update_scheduled(si_id: int, request: Request, db: DBSession = Depends(get_db)):
+    user = await get_current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    si = db.query(ScheduledInterview).filter(ScheduledInterview.id == si_id, ScheduledInterview.employer_id == user["id"]).first()
+    if not si:
+        raise HTTPException(status_code=404, detail="Not found")
+    body = await request.json()
+    if "title" in body and body["title"]:
+        si.title = body["title"]
+    if "startTime" in body and body["startTime"]:
+        si.start_time = datetime.fromisoformat(body["startTime"].replace("Z", "+00:00"))
+    if "deadlineTime" in body and body["deadlineTime"]:
+        si.deadline_time = datetime.fromisoformat(body["deadlineTime"].replace("Z", "+00:00"))
+    db.commit()
+    db.refresh(si)
+    return _si_to_dict(si)
+
+
 @router.delete("/scheduled-interviews/{si_id}")
 async def delete_scheduled(si_id: int, request: Request, db: DBSession = Depends(get_db)):
     user = await get_current_user(request, db)
@@ -317,7 +337,6 @@ def _si_to_dict(si: ScheduledInterview) -> dict:
         "interviewStyle": si.interview_style,
         "interviewType": getattr(si, "interview_type", "Mixed"),
         "codingLanguage": getattr(si, "coding_language", "Candidate's Choice"),
-        "questionComplexity": getattr(si, "question_complexity", "Moderate"),
         "createdAt": si.created_at.isoformat() if si.created_at else None,
     }
 

@@ -15,6 +15,7 @@ import CreateJob from "@/pages/CreateJob";
 import ScheduleInterview from "@/pages/ScheduleInterview";
 import ScheduledInterviewCandidates from "@/pages/ScheduledInterviewCandidates";
 import ScheduledInterviewResults from "@/pages/ScheduledInterviewResults";
+import EditScheduledInterview from "@/pages/EditScheduledInterview";
 import InterviewAccess from "@/pages/InterviewAccess";
 import Profile from "@/pages/Profile";
 import NotFound from "@/pages/not-found";
@@ -84,6 +85,7 @@ function Router() {
       <Route path="/employer/schedule"><ProtectedRoute component={ScheduleInterview} /></Route>
       <Route path="/employer/scheduled/:id/candidates"><ProtectedRoute component={ScheduledInterviewCandidates} /></Route>
       <Route path="/employer/scheduled/:id/results"><ProtectedRoute component={ScheduledInterviewResults} /></Route>
+      <Route path="/employer/scheduled/:id/edit"><ProtectedRoute component={EditScheduledInterview} /></Route>
       <Route path="/interview-access/:id" component={InterviewAccess} />
       <Route path="/profile"><ProtectedRoute component={Profile} /></Route>
       <Route component={NotFound} />

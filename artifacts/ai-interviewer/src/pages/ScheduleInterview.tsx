@@ -22,7 +22,6 @@ export default function ScheduleInterview() {
     interviewType: "Mixed",
     codingQuestionsCount: "0",
     codingLanguage: "Candidate's Choice",
-    questionComplexity: "Moderate",
     startTime: "",
     deadlineTime: "",
   });
@@ -171,8 +170,6 @@ export default function ScheduleInterview() {
             options={["Friendly", "Professional", "Moderate", "Strict"]}
             description="Friendly = supportive tone; Moderate = balanced; Strict = rigorous, high-pressure" />
 
-          <SelectRow label="Question Complexity" field="questionComplexity" options={["Standard", "Moderate", "Complex"]}
-            description="Standard = foundational; Moderate = mid-level; Complex = senior/principal level" />
         </motion.div>
 
         {/* Coding Options */}
@@ -219,7 +216,6 @@ export default function ScheduleInterview() {
               form.interviewType,
               form.difficulty + " Difficulty",
               form.interviewStyle + " Style",
-              form.questionComplexity + " Complexity",
               ...(Number(form.codingQuestionsCount) > 0
                 ? [`${form.codingQuestionsCount} Coding Q${Number(form.codingQuestionsCount) > 1 ? "s" : ""}`, form.codingLanguage]
                 : ["No Coding"]),

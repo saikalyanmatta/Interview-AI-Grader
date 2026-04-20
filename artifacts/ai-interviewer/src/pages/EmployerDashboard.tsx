@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Plus, Briefcase, Calendar, Trash2, Users, ChevronRight, BarChart3, Clock } from "lucide-react";
+import { Plus, Briefcase, Calendar, Trash2, Users, BarChart3, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 const fadeUp = { hidden: { opacity: 0, y: 16 }, show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.4, delay: i * 0.07 } }) };
@@ -113,7 +113,12 @@ export default function EmployerDashboard() {
                           <BarChart3 className="h-3.5 w-3.5" />Results
                         </button>
                       </Link>
-                      <button onClick={() => { if (confirm("Delete?")) deleteSi.mutate(si.id); }} className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                      <Link href={`/employer/scheduled/${si.id}/edit`}>
+                        <button className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors" title="Edit">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      </Link>
+                      <button onClick={() => { if (confirm("Delete this interview session?")) deleteSi.mutate(si.id); }} className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors" title="Delete">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>

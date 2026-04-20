@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Plus, Mic, Trash2, ChevronRight, Clock, CheckCircle, Circle, BarChart3, Award } from "lucide-react";
+import { Plus, Mic, Trash2, ChevronRight, Clock, CheckCircle, Circle, BarChart3, Award, Medal } from "lucide-react";
 import { toast } from "sonner";
+import { BadgesPanel } from "@/components/BadgesPanel";
 
 const fadeUp = { hidden: { opacity: 0, y: 16 }, show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.4, delay: i * 0.07 } }) };
 
@@ -16,6 +17,7 @@ function recommendationBadge(rec: string | null) {
 
 export default function CandidateDashboard() {
   const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"interviews" | "badges">("interviews");
   const { data: interviews = [], isLoading } = useQuery({
     queryKey: ["interviews"],
     queryFn: async () => {
@@ -53,7 +55,7 @@ export default function CandidateDashboard() {
       </motion.div>
 
       {!isLoading && interviews.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {[
             { label: "Total Sessions", value: interviews.length, icon: Mic, color: "from-indigo-500 to-blue-600" },
             { label: "Completed", value: completed.length, icon: CheckCircle, color: "from-emerald-500 to-teal-600" },
@@ -72,9 +74,27 @@ export default function CandidateDashboard() {
         </div>
       )}
 
-      {isLoading ? (
+      {!isLoading && interviews.length > 0 && (
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={4} className="flex gap-1 p-1 rounded-xl bg-secondary/50 border border-border w-fit mb-6">
+          {(["interviews", "badges"] as const).map(t => (
+            <button key={t} onClick={() => setActiveTab(t)}
+              className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === t ? "bg-background border border-border shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {t === "interviews" ? <><BarChart3 className="h-3.5 w-3.5" />My Interviews</> : <><Medal className="h-3.5 w-3.5" />Badges</>}
+            </button>
+          ))}
+        </motion.div>
+      )}
+
+      {!isLoading && activeTab === "badges" && (
+        <motion.div initial="hidden" animate="show" variants={fadeUp} custom={5} className="glass-panel rounded-2xl p-6">
+          <BadgesPanel interviews={interviews} />
+        </motion.div>
+      )}
+
+      {(isLoading || activeTab === "interviews") && isLoading ? (
         <div className="grid gap-4">{[1, 2, 3].map(i => <div key={i} className="glass-panel rounded-2xl p-5 h-24 animate-pulse bg-secondary/30" />)}</div>
-      ) : interviews.length === 0 ? (
+      ) : activeTab === "interviews" && interviews.length === 0 ? (
         <motion.div initial="hidden" animate="show" variants={fadeUp} custom={1} className="glass-panel rounded-3xl p-16 text-center">
           <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
             <Mic className="h-8 w-8 text-primary" />
@@ -87,7 +107,7 @@ export default function CandidateDashboard() {
             </button>
           </Link>
         </motion.div>
-      ) : (
+      ) : activeTab === "interviews" ? (
         <div className="grid gap-3">
           {interviews.map((iv: any, i: number) => (
             <motion.div key={iv.id} initial="hidden" animate="show" variants={fadeUp} custom={i + 2} className="glass-panel rounded-2xl p-5 flex items-center gap-4">
@@ -134,7 +154,7 @@ export default function CandidateDashboard() {
             </motion.div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

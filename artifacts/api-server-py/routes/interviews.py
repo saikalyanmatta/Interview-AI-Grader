@@ -87,17 +87,29 @@ async def list_interviews(request: Request, db: DBSession = Depends(get_db)):
             job_title = j.title if j else None
         overall_score = None
         recommendation = None
+        behavioral_score = None
+        coding_score = None
+        technical_score = None
+        english_score = None
         if iv.status == "completed":
             r = db.query(InterviewReport).filter(InterviewReport.interview_id == iv.id).first()
             if r:
                 overall_score = r.overall_score
                 recommendation = r.recommendation
+                behavioral_score = r.behavioral_score
+                coding_score = getattr(r, "coding_score", None)
+                technical_score = getattr(r, "technical_score", None)
+                english_score = r.english_score
         result.append(_interview_to_dict(iv, {
             "jobTitle": job_title,
             "totalQuestions": len(questions),
             "answeredQuestions": len(answers),
             "overallScore": overall_score,
             "recommendation": recommendation,
+            "behavioralScore": behavioral_score,
+            "codingScore": coding_score,
+            "technicalScore": technical_score,
+            "englishScore": english_score,
         }))
     return result
 
