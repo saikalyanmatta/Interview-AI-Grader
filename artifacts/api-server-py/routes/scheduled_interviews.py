@@ -53,7 +53,10 @@ async def create_scheduled(request: Request, db: DBSession = Depends(get_db)):
         coding_questions_count=body.get("codingQuestionsCount", 0),
         role=body.get("role", "Software Engineer"),
         difficulty=body.get("difficulty", "Medium"),
-        interview_style=body.get("interviewStyle", "Friendly"),
+        interview_style=body.get("interviewStyle", "Professional"),
+        interview_type=body.get("interviewType", "Mixed"),
+        coding_language=body.get("codingLanguage", "Candidate's Choice"),
+        question_complexity=body.get("questionComplexity", "Moderate"),
     )
     db.add(si)
     db.commit()
@@ -171,6 +174,8 @@ async def get_results(si_id: int, request: Request, db: DBSession = Depends(get_
             "englishScore": report.english_score if report else None,
             "behavioralScore": report.behavioral_score if report else None,
             "confidenceScore": report.confidence_score if report else None,
+            "codingScore": getattr(report, "coding_score", None) if report else None,
+            "technicalScore": getattr(report, "technical_score", None) if report else None,
         })
 
     attempted_emails = {r["email"].lower() for r in results}
@@ -209,13 +214,15 @@ async def export_results(si_id: int, request: Request, db: DBSession = Depends(g
             "englishScore": report.english_score if report else None,
             "behavioralScore": report.behavioral_score if report else None,
             "confidenceScore": report.confidence_score if report else None,
+            "codingScore": getattr(report, "coding_score", None) if report else None,
+            "technicalScore": getattr(report, "technical_score", None) if report else None,
             "skillScores": skill_scores,
             "recommendation": report.recommendation if report else None,
             "feedback": report.feedback if report else "",
         })
 
     all_skill_names = list({s["skill"] for r in results for s in r["skillScores"]})
-    base_headers = ["Name", "Email", "Overall Score", "English Score", "Behavioral Score", "Confidence Score"]
+    base_headers = ["Name", "Email", "Overall Score", "Behavioral Score", "Coding Score", "Technical Theory Score", "English Score", "Confidence Score"]
     skill_headers = [f"Skill: {s}" for s in all_skill_names]
     headers = base_headers + skill_headers + ["Recommendation", "Feedback"]
 
@@ -247,7 +254,7 @@ async def export_results(si_id: int, request: Request, db: DBSession = Depends(g
             ws.column_dimensions[col_letter].width = 18
 
     def make_row(r):
-        base = [r["candidateName"], r["email"], r["overallScore"], r["englishScore"], r["behavioralScore"], r["confidenceScore"]]
+        base = [r["candidateName"], r["email"], r["overallScore"], r["behavioralScore"], r["codingScore"], r["technicalScore"], r["englishScore"], r["confidenceScore"]]
         skills = [next((s["score"] for s in r["skillScores"] if s["skill"] == sn), "") for sn in all_skill_names]
         return base + skills + [r["recommendation"], r["feedback"]]
 
@@ -308,6 +315,9 @@ def _si_to_dict(si: ScheduledInterview) -> dict:
         "role": si.role,
         "difficulty": si.difficulty,
         "interviewStyle": si.interview_style,
+        "interviewType": getattr(si, "interview_type", "Mixed"),
+        "codingLanguage": getattr(si, "coding_language", "Candidate's Choice"),
+        "questionComplexity": getattr(si, "question_complexity", "Moderate"),
         "createdAt": si.created_at.isoformat() if si.created_at else None,
     }
 

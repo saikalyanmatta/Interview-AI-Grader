@@ -8,6 +8,25 @@ from db.models import Base
 
 Base.metadata.create_all(engine)
 
+def _run_migrations():
+    from sqlalchemy import text
+    new_columns = [
+        ("scheduled_interviews", "interview_type", "TEXT DEFAULT 'Mixed'"),
+        ("scheduled_interviews", "coding_language", "TEXT DEFAULT 'Candidate''s Choice'"),
+        ("scheduled_interviews", "question_complexity", "TEXT DEFAULT 'Moderate'"),
+        ("interview_reports", "coding_score", "INTEGER"),
+        ("interview_reports", "technical_score", "INTEGER"),
+    ]
+    with engine.connect() as conn:
+        for table, col, col_def in new_columns:
+            try:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_def}"))
+                conn.commit()
+            except Exception:
+                pass
+
+_run_migrations()
+
 app = FastAPI(title="EvalPro API", version="2.0.0")
 
 app.add_middleware(

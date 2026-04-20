@@ -30,13 +30,13 @@ args = "Python Backend"
 name = "Python Backend"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=8080 python artifacts/api-server-py/main.py"
-waitForPort = 8080
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8000 python artifacts/api-server-py/main.py"
+waitForPort = 8000
 
 [agent]
 stack = "PNPM_WORKSPACE"

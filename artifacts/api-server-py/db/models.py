@@ -48,7 +48,10 @@ class ScheduledInterview(Base):
     coding_questions_count = Column(Integer, nullable=False, default=0, name="coding_questions_count")
     role = Column(Text, nullable=False, default="Software Engineer")
     difficulty = Column(Text, nullable=False, default="Medium")
-    interview_style = Column(Text, nullable=False, default="Friendly", name="interview_style")
+    interview_style = Column(Text, nullable=False, default="Professional", name="interview_style")
+    interview_type = Column(Text, nullable=False, default="Mixed", name="interview_type")
+    coding_language = Column(Text, nullable=False, default="Candidate's Choice", name="coding_language")
+    question_complexity = Column(Text, nullable=False, default="Moderate", name="question_complexity")
     created_at = Column(DateTime, name="created_at", server_default=func.now())
 
 
@@ -112,6 +115,8 @@ class InterviewReport(Base):
     confidence_score = Column(Integer, default=70, name="confidence_score")
     confidence_notes = Column(Text, default="", name="confidence_notes")
     behavioral_score = Column(Integer, default=70, name="behavioral_score")
+    coding_score = Column(Integer, name="coding_score")
+    technical_score = Column(Integer, name="technical_score")
     behavioral_analysis = Column(JSON, nullable=False, default=dict, name="behavioral_analysis")
     communication_analysis = Column(JSON, nullable=False, default=dict, name="communication_analysis")
     answer_quality_breakdown = Column(JSON, nullable=False, default=list, name="answer_quality_breakdown")
