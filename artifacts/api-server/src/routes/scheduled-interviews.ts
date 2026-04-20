@@ -74,6 +74,23 @@ router.get("/scheduled-interviews/:id", async (req, res) => {
   res.json({ ...si, jobTitle, candidates });
 });
 
+router.patch("/scheduled-interviews/:id", async (req, res) => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = parseInt(req.params.id);
+  const [si] = await db.select().from(scheduledInterviewsTable)
+    .where(and(eq(scheduledInterviewsTable.id, id), eq(scheduledInterviewsTable.employerId, req.user.id)));
+  if (!si) { res.status(404).json({ error: "Not found" }); return; }
+  const { title, startTime, deadlineTime, status } = req.body;
+  const updates: Record<string, any> = {};
+  if (title !== undefined) updates.title = title;
+  if (startTime !== undefined) updates.startTime = new Date(startTime);
+  if (deadlineTime !== undefined) updates.deadlineTime = new Date(deadlineTime);
+  if (status !== undefined) updates.status = status;
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
+  const [updated] = await db.update(scheduledInterviewsTable).set(updates).where(eq(scheduledInterviewsTable.id, id)).returning();
+  res.json(updated);
+});
+
 router.delete("/scheduled-interviews/:id", async (req, res) => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = parseInt(req.params.id);
