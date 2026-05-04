@@ -124,4 +124,10 @@ class InterviewReport(Base):
     skill_scores = Column(JSON, nullable=False, default=list, name="skill_scores")
     recommendation = Column(Text, nullable=False)
     feedback = Column(Text, nullable=False)
+    # Enhanced report fields
+    strengths = Column(JSON, default=list, name="strengths")
+    red_flags = Column(JSON, default=list, name="red_flags")
+    growth_areas = Column(JSON, default=list, name="growth_areas")
+    hiring_rationale = Column(JSON, default=dict, name="hiring_rationale")
+    interview_pacing = Column(JSON, default=dict, name="interview_pacing")
     created_at = Column(DateTime, name="created_at", server_default=func.now())

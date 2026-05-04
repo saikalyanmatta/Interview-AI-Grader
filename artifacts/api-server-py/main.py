@@ -16,6 +16,11 @@ def _run_migrations():
         ("scheduled_interviews", "question_complexity", "TEXT DEFAULT 'Moderate'"),
         ("interview_reports", "coding_score", "INTEGER"),
         ("interview_reports", "technical_score", "INTEGER"),
+        ("interview_reports", "strengths", "JSONB DEFAULT '[]'"),
+        ("interview_reports", "red_flags", "JSONB DEFAULT '[]'"),
+        ("interview_reports", "growth_areas", "JSONB DEFAULT '[]'"),
+        ("interview_reports", "hiring_rationale", "JSONB DEFAULT '{}'"),
+        ("interview_reports", "interview_pacing", "JSONB DEFAULT '{}'"),
     ]
     with engine.connect() as conn:
         for table, col, col_def in new_columns:
@@ -27,7 +32,7 @@ def _run_migrations():
 
 _run_migrations()
 
-app = FastAPI(title="EvalPro API", version="2.0.0")
+app = FastAPI(title="Vocalize.ai API", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session as DBSession
 from db.database import get_db
 from db.models import Interview, InterviewQuestion, InterviewAnswer, InterviewReport, Job, ScheduledInterview, InterviewCandidate, User
 from routes.auth import get_current_user
-from lib.ai import analyze_stutter, analyze_communication, analyze_facial_frames, parse_json_response, get_openai_client
+from lib.ai import analyze_stutter, analyze_communication, analyze_facial_frames, parse_json_response, get_openai_client, build_grading_prompt
 
 router = APIRouter()
 
@@ -66,6 +66,11 @@ def _report_to_dict(r: InterviewReport) -> dict:
         "answerQualityBreakdown": r.answer_quality_breakdown,
         "stutterAnalysis": r.stutter_analysis, "skillScores": r.skill_scores,
         "recommendation": r.recommendation, "feedback": r.feedback,
+        "strengths": getattr(r, "strengths", None) or [],
+        "redFlags": getattr(r, "red_flags", None) or [],
+        "growthAreas": getattr(r, "growth_areas", None) or [],
+        "hiringRationale": getattr(r, "hiring_rationale", None) or {},
+        "interviewPacing": getattr(r, "interview_pacing", None) or {},
         "createdAt": r.created_at.isoformat() if r.created_at else None,
     }
 
@@ -503,45 +508,37 @@ async def complete_interview(interview_id: int, request: Request, db: DBSession 
         skills_str = ", ".join(s["name"] + " (level " + str(s.get("requiredLevel", 5)) + "/10)" for s in job_skills)
         skills_line = "Required skills: " + skills_str
 
-    grading_prompt = f"""You are an expert interview evaluator. Analyze this complete interview and grade the candidate.
-
-Interview transcript with fluency metrics:
-{qa_text}{coding_section}
-
-Interview: {role} role, {iv.difficulty or 'Medium'} difficulty, {iv.interview_style or 'Friendly'} style.
-{skills_line}
-
-Candidate confidence score: {avg_confidence}/100
-{f"Confidence notes: {confidence_notes}" if confidence_notes else ""}
-
-Measured communication: {json.dumps(comm_analysis)}
-
-Return ONLY JSON:
-{{
-  "englishScore": <0-100>,
-  "englishFeedback": "<specific feedback>",
-  "behavioralScore": <0-100 score on behavioral/soft-skill questions>,
-  "codingScore": <0-100 score on coding/programming challenges, or null if no coding questions>,
-  "technicalScore": <0-100 score on technical theory/knowledge questions, or null if no technical questions>,
-  "behavioralAnalysis": {{"starCompleteness":"<assessment>","missingElements":[],"problemSolving":"<assessment>","emotionalIntelligence":"<assessment>","suggestions":[]}},
-  "communicationAnalysis": {{"clarityScore":<0-100>,"fillerWords":{{}},"sentenceStructureScore":<0-100>,"summary":"<explanation>"}},
-  "skillScores": [{{"skill":"<skill>","score":<0-100>,"feedback":"<feedback>","meetRequirement":null}}],
-  "answerQualityBreakdown": [{{"question":"<q>","yourAnswer":"<a>","rating":<0-100>,"suggestedBetterAnswer":"<better>"}}],
-  "overallScore": <0-100>,
-  "recommendation": "hire|no_hire|maybe",
-  "feedback": "<3-4 sentence executive summary>"
-}}"""
+    grading_prompt = build_grading_prompt(
+        qa_text=qa_text,
+        coding_section=coding_section,
+        role=role,
+        difficulty=iv.difficulty or "Medium",
+        interview_style=iv.interview_style or "Friendly",
+        skills_line=skills_line,
+        avg_confidence=avg_confidence,
+        confidence_notes=confidence_notes,
+        comm_analysis=comm_analysis,
+        resume_excerpt=iv.resume_text or "",
+    )
 
     client = get_openai_client()
     grading_resp = client.chat.completions.create(
-        model="gpt-4o", max_tokens=3000,
-        messages=[{"role": "user", "content": grading_prompt}],
+        model="gpt-5.4", max_tokens=5000,
+        messages=[
+            {
+                "role": "system",
+                "content": "You are an expert interview evaluator. Always return valid JSON only, no markdown fences, no extra text."
+            },
+            {"role": "user", "content": grading_prompt}
+        ],
     )
     grading = parse_json_response(grading_resp.choices[0].message.content or "{}", {
         "englishScore": 70, "englishFeedback": "Unable to evaluate.",
         "behavioralScore": 70, "behavioralAnalysis": {"missingElements": [], "suggestions": []},
         "communicationAnalysis": comm_analysis,
         "answerQualityBreakdown": [], "skillScores": [],
+        "strengths": [], "redFlags": [], "growthAreas": [],
+        "hiringRationale": {}, "interviewPacing": {},
         "overallScore": 70, "recommendation": "maybe",
         "feedback": "Evaluation could not be completed.",
     })
@@ -574,7 +571,7 @@ Return ONLY JSON:
         english_feedback=grading.get("englishFeedback", ""),
         overall_score=grading.get("overallScore", 70),
         confidence_score=avg_confidence,
-        confidence_notes=confidence_notes or grading.get("feedback", ""),
+        confidence_notes=confidence_notes or "",
         behavioral_score=grading.get("behavioralScore", 70),
         coding_score=grading.get("codingScore"),
         technical_score=grading.get("technicalScore"),
@@ -585,6 +582,11 @@ Return ONLY JSON:
         skill_scores=grading.get("skillScores", []),
         recommendation=grading.get("recommendation", "maybe"),
         feedback=grading.get("feedback", ""),
+        strengths=grading.get("strengths", []),
+        red_flags=grading.get("redFlags", []),
+        growth_areas=grading.get("growthAreas", []),
+        hiring_rationale=grading.get("hiringRationale", {}),
+        interview_pacing=grading.get("interviewPacing", {}),
     )
     db.add(report)
     iv.status = "completed"
