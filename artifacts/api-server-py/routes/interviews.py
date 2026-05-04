@@ -214,7 +214,7 @@ async def submit_resume(interview_id: int, request: Request, db: DBSession = Dep
 
     client = get_openai_client()
     resp = client.chat.completions.create(
-        model="gpt-4o", max_tokens=1024,
+        model="gpt-4o", max_completion_tokens=1024,
         messages=[
             {"role": "system", "content": 'Extract a list of technical skills, technologies, and subjects from the resume. Return ONLY a JSON array of strings. Example: ["JavaScript","React","Python","SQL"]'},
             {"role": "user", "content": resume_text},
@@ -264,7 +264,7 @@ async def upload_resume(
 
     client = get_openai_client()
     resp = client.chat.completions.create(
-        model="gpt-4o", max_tokens=1024,
+        model="gpt-4o", max_completion_tokens=1024,
         messages=[
             {"role": "system", "content": 'Extract a list of technical skills, technologies, and subjects from the resume. Return ONLY a JSON array of strings.'},
             {"role": "user", "content": resume_text[:6000]},
@@ -328,7 +328,7 @@ Interview style: {iv.interview_style or 'Friendly'}. Difficulty: {iv.difficulty 
 
 Return ONLY JSON: {{"question": "Your greeting and first question here", "category": "introduction", "skill": null}}"""
 
-        resp = client.chat.completions.create(model="gpt-4o", max_tokens=500, messages=[{"role": "user", "content": prompt}])
+        resp = client.chat.completions.create(model="gpt-4o", max_completion_tokens=500, messages=[{"role": "user", "content": prompt}])
         q_data = parse_json_response(resp.choices[0].message.content or "{}", {"question": "Tell me about yourself.", "category": "introduction", "skill": None})
 
         q = InterviewQuestion(
@@ -372,7 +372,7 @@ Style: {iv.interview_style or 'Friendly'}. Difficulty: {iv.difficulty or 'Medium
 
 Return ONLY JSON: {{"question": "...", "category": "behavioral|technical|english_fluency|situational", "skill": "skill name or null"}}"""
 
-    resp = client.chat.completions.create(model="gpt-4o", max_tokens=400, messages=[{"role": "user", "content": prompt}])
+    resp = client.chat.completions.create(model="gpt-4o", max_completion_tokens=400, messages=[{"role": "user", "content": prompt}])
     q_data = parse_json_response(resp.choices[0].message.content or "{}", {"question": "Can you describe a challenging project?", "category": "behavioral", "skill": None})
 
     q = InterviewQuestion(
@@ -523,7 +523,7 @@ async def complete_interview(interview_id: int, request: Request, db: DBSession 
 
     client = get_openai_client()
     grading_resp = client.chat.completions.create(
-        model="gpt-5.4", max_tokens=5000,
+        model="gpt-5.4", max_completion_tokens=5000,
         messages=[
             {
                 "role": "system",
@@ -631,7 +631,7 @@ async def get_coding_questions(interview_id: int, request: Request, db: DBSessio
     prompt = f"""Generate {count} coding interview question(s) for a {iv.role or 'Software Engineer'} at {iv.difficulty or 'Medium'} difficulty, in {language}.
 Return ONLY JSON array: [{{"title":"...","description":"...","examples":"..."}}]"""
 
-    resp = client.chat.completions.create(model="gpt-4o", max_tokens=800, messages=[{"role": "user", "content": prompt}])
+    resp = client.chat.completions.create(model="gpt-4o", max_completion_tokens=800, messages=[{"role": "user", "content": prompt}])
     questions = parse_json_response(resp.choices[0].message.content or "[]", [])
     return {"questions": questions, "language": language}
 

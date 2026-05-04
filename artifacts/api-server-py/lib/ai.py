@@ -100,7 +100,7 @@ async def analyze_facial_frames(frames: list[str]) -> dict:
         try:
             resp = client.chat.completions.create(
                 model="gpt-4o",
-                max_tokens=150,
+                max_completion_tokens=150,
                 messages=[{
                     "role": "user",
                     "content": [
