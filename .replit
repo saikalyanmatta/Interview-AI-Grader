@@ -39,7 +39,7 @@ args = "PORT=8000 python artifacts/api-server-py/main.py"
 waitForPort = 8000
 
 [agent]
-stack = "PNPM_WORKSPACE"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
 
 [postMerge]
