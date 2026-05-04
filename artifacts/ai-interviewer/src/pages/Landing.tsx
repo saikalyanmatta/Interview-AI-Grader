@@ -4,7 +4,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { motion } from "framer-motion";
 import {
   Mic, Target, BrainCircuit, ArrowRight, Star, Shield,
-  Zap, ChevronRight, Play, BarChart3, Users, Clock
+  Zap, ChevronRight, Play
 } from "lucide-react";
 
 const fadeUp = {
@@ -12,12 +12,6 @@ const fadeUp = {
   show: (i: number) => ({ opacity: 1, y: 0, transition: { duration: 0.5, delay: i * 0.1 } }),
 };
 
-const stats = [
-  { label: "Interviews Conducted", value: "12,400+", icon: Mic },
-  { label: "Average Score Improvement", value: "38%", icon: BarChart3 },
-  { label: "Active Users", value: "3,200+", icon: Users },
-  { label: "Avg Session Length", value: "28 min", icon: Clock },
-];
 
 const features = [
   {
@@ -139,25 +133,6 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="w-full py-16 border-y border-border/50 bg-secondary/30">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((stat, i) => (
-              <motion.div
-                key={i}
-                initial="hidden" animate="show" variants={fadeUp} custom={i}
-                className="flex flex-col items-center text-center gap-2"
-              >
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center mb-1">
-                  <stat.icon className="h-5 w-5 text-primary" />
-                </div>
-                <div className="font-display font-bold text-2xl md:text-3xl">{stat.value}</div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       <section className="w-full py-24 px-4">
         <div className="container mx-auto max-w-6xl">
