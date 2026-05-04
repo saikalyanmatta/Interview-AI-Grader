@@ -76,6 +76,7 @@ class Interview(Base):
     candidate_name = Column(Text, name="candidate_name")
     resume_text = Column(Text, name="resume_text")
     coding_language = Column(Text, name="coding_language")
+    coding_questions_count = Column(Integer, nullable=False, default=1, name="coding_questions_count")
     coding_answers = Column(JSON, name="coding_answers", default=list)
     created_at = Column(DateTime, name="created_at", server_default=func.now())
     updated_at = Column(DateTime, name="updated_at", server_default=func.now(), onupdate=func.now())

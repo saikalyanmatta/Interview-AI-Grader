@@ -21,6 +21,7 @@ def _run_migrations():
         ("interview_reports", "growth_areas", "JSONB DEFAULT '[]'"),
         ("interview_reports", "hiring_rationale", "JSONB DEFAULT '{}'"),
         ("interview_reports", "interview_pacing", "JSONB DEFAULT '{}'"),
+        ("interviews", "coding_questions_count", "INTEGER DEFAULT 1"),
     ]
     with engine.connect() as conn:
         for table, col, col_def in new_columns:

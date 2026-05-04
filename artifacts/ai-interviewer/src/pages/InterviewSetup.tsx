@@ -47,6 +47,7 @@ export default function InterviewSetup() {
   const [difficulty, setDifficulty] = useState<typeof DIFFICULTIES[number]["value"]>("Medium");
   const [style, setStyle] = useState<typeof STYLES[number]["value"]>("Professional");
   const [codingLang, setCodingLang] = useState("Python");
+  const [codingCount, setCodingCount] = useState(1);
   const [jobId, setJobId] = useState<number | null>(null);
 
   const [resumeText, setResumeText] = useState("");
@@ -111,6 +112,7 @@ export default function InterviewSetup() {
           interviewStyle: style,
           jobId: jobId || undefined,
           codingLanguage: codingLang === "None" ? undefined : codingLang,
+          codingQuestionsCount: codingLang === "None" ? 0 : codingCount,
         }),
       });
       const iv = await ivRes.json();
@@ -334,18 +336,37 @@ export default function InterviewSetup() {
                     </div>
                   )}
 
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coding Questions</label>
-                    <div className="flex flex-wrap gap-2">
-                      {CODING_LANGS.map(l => (
-                        <button key={l} onClick={() => setCodingLang(l)}
-                          className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all ${
-                            codingLang === l ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground hover:text-foreground hover:border-primary/40"
-                          }`}>
-                          {l === "None" ? "No coding questions" : l}
-                        </button>
-                      ))}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coding Language</label>
+                      <div className="flex flex-wrap gap-2">
+                        {CODING_LANGS.map(l => (
+                          <button key={l} onClick={() => { setCodingLang(l); if (l === "None") setCodingCount(0); else if (codingCount === 0) setCodingCount(1); }}
+                            className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all ${
+                              codingLang === l ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground hover:text-foreground hover:border-primary/40"
+                            }`}>
+                            {l === "None" ? "No coding questions" : l}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+
+                    {codingLang !== "None" && (
+                      <div>
+                        <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Number of Coding Questions</label>
+                        <div className="flex gap-2">
+                          {[1, 2, 3, 4, 5].map(n => (
+                            <button key={n} onClick={() => setCodingCount(n)}
+                              className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all ${
+                                codingCount === n ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground hover:text-foreground hover:border-primary/40"
+                              }`}>
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1.5">How many coding challenges you want at the end of your interview</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-xl bg-secondary/40 border border-border p-4 text-sm space-y-1.5">
@@ -354,7 +375,7 @@ export default function InterviewSetup() {
                       <span><span className="text-foreground font-medium">Role:</span> {role}</span>
                       <span><span className="text-foreground font-medium">Difficulty:</span> {difficulty}</span>
                       <span><span className="text-foreground font-medium">Style:</span> {style}</span>
-                      <span><span className="text-foreground font-medium">Coding:</span> {codingLang === "None" ? "None" : codingLang}</span>
+                      <span><span className="text-foreground font-medium">Coding:</span> {codingLang === "None" ? "None" : `${codingCount}× ${codingLang}`}</span>
                     </div>
                   </div>
                 </div>

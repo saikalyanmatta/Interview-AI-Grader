@@ -4,7 +4,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { useTheme } from "./ThemeProvider";
 import {
   LayoutDashboard, Briefcase, LogOut, Sun, Moon,
-  Menu, X, ChevronRight, User
+  Menu, X, ChevronRight, User, FileSearch
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -32,32 +32,45 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span className="font-display font-bold text-xl tracking-tight">Eval<span className="text-primary">Pro</span></span>
           </Link>
 
-          {isAuthenticated && (
-            <nav className="hidden md:flex items-center gap-1 bg-secondary/60 rounded-xl p-1 border border-border">
-              <Link href="/dashboard">
+          <nav className="hidden md:flex items-center gap-1 bg-secondary/60 rounded-xl p-1 border border-border">
+              {isAuthenticated && (
+                <>
+                  <Link href="/dashboard">
+                    <button className={cn(
+                      "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+                      !isEmployerSection && location !== "/resume-score"
+                        ? "bg-background shadow-sm text-foreground border border-border"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}>
+                      <LayoutDashboard className="h-4 w-4" />
+                      Candidate
+                    </button>
+                  </Link>
+                  <Link href="/employer">
+                    <button className={cn(
+                      "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+                      isEmployerSection
+                        ? "bg-background shadow-sm text-foreground border border-border"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}>
+                      <Briefcase className="h-4 w-4" />
+                      Employer
+                    </button>
+                  </Link>
+                </>
+              )}
+              <Link href="/resume-score">
                 <button className={cn(
                   "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-                  !isEmployerSection
+                  location === "/resume-score"
                     ? "bg-background shadow-sm text-foreground border border-border"
                     : "text-muted-foreground hover:text-foreground"
                 )}>
-                  <LayoutDashboard className="h-4 w-4" />
-                  Candidate
-                </button>
-              </Link>
-              <Link href="/employer">
-                <button className={cn(
-                  "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-                  isEmployerSection
-                    ? "bg-background shadow-sm text-foreground border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                )}>
-                  <Briefcase className="h-4 w-4" />
-                  Employer
+                  <FileSearch className="h-4 w-4" />
+                  Resume Score
                 </button>
               </Link>
             </nav>
-          )}
 
           <div className="flex items-center gap-2">
             <button
@@ -145,15 +158,29 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <span className="font-medium">My Profile</span>
                       </div>
                     </Link>
+                    <Link href="/resume-score" onClick={() => setMobileOpen(false)}>
+                      <div className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-secondary transition-colors">
+                        <FileSearch className="h-5 w-5 text-primary" />
+                        <span className="font-medium">Resume Score</span>
+                      </div>
+                    </Link>
                     <button onClick={() => { logout(); setMobileOpen(false); }} className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-destructive/10 text-destructive transition-colors w-full text-left">
                       <LogOut className="h-5 w-5" />
                       <span className="font-medium">Sign Out</span>
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => { login(); setMobileOpen(false); }} className="w-full py-3 rounded-xl font-semibold btn-gradient text-center">
-                    Get Started Free
-                  </button>
+                  <>
+                    <Link href="/resume-score" onClick={() => setMobileOpen(false)}>
+                      <div className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-secondary transition-colors">
+                        <FileSearch className="h-5 w-5 text-primary" />
+                        <span className="font-medium">Resume Score</span>
+                      </div>
+                    </Link>
+                    <button onClick={() => { login(); setMobileOpen(false); }} className="w-full py-3 rounded-xl font-semibold btn-gradient text-center">
+                      Get Started Free
+                    </button>
+                  </>
                 )}
               </div>
             </motion.div>

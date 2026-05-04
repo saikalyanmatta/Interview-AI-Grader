@@ -25,6 +25,7 @@ def _interview_to_dict(iv: Interview, extra: dict = None) -> dict:
         "candidateName": iv.candidate_name,
         "resumeText": iv.resume_text,
         "codingLanguage": iv.coding_language,
+        "codingQuestionsCount": getattr(iv, "coding_questions_count", 1),
         "codingAnswers": iv.coding_answers or [],
         "createdAt": iv.created_at.isoformat() if iv.created_at else None,
         "updatedAt": iv.updated_at.isoformat() if iv.updated_at else None,
@@ -132,6 +133,7 @@ async def create_interview(request: Request, db: DBSession = Depends(get_db)):
     interview_style = body.get("interviewStyle", "Friendly")
     scheduled_id = body.get("scheduledInterviewId")
     coding_language = body.get("codingLanguage")
+    coding_questions_count = int(body.get("codingQuestionsCount", 1))
 
     if scheduled_id:
         from datetime import datetime
@@ -168,6 +170,7 @@ async def create_interview(request: Request, db: DBSession = Depends(get_db)):
         difficulty=difficulty,
         interview_style=interview_style,
         coding_language=coding_language,
+        coding_questions_count=coding_questions_count,
         status="pending",
     )
     db.add(iv)
@@ -618,22 +621,98 @@ async def get_coding_questions(interview_id: int, request: Request, db: DBSessio
     if not iv:
         raise HTTPException(status_code=404, detail="Interview not found")
 
-    count = 1
+    language_override = request.query_params.get("language")
+
     if iv.scheduled_interview_id:
         si = db.query(ScheduledInterview).filter(ScheduledInterview.id == iv.scheduled_interview_id).first()
-        count = si.coding_questions_count if si else 1
+        count = si.coding_questions_count if si else getattr(iv, "coding_questions_count", 1)
+        stored_language = si.coding_language if si else (iv.coding_language or "Python")
+    else:
+        count = getattr(iv, "coding_questions_count", 1)
+        stored_language = iv.coding_language or "Python"
 
     if count == 0:
-        return {"questions": []}
+        return {"questions": [], "language": stored_language, "isChoice": False}
 
-    language = iv.coding_language or "Python"
+    is_choice = stored_language == "Candidate's Choice"
+    if is_choice and language_override:
+        language = language_override
+        iv.coding_language = language_override
+        db.commit()
+    elif is_choice:
+        return {"questions": [], "language": "Candidate's Choice", "isChoice": True}
+    else:
+        language = stored_language
+
     client = get_openai_client()
     prompt = f"""Generate {count} coding interview question(s) for a {iv.role or 'Software Engineer'} at {iv.difficulty or 'Medium'} difficulty, in {language}.
-Return ONLY JSON array: [{{"title":"...","description":"...","examples":"..."}}]"""
+Return ONLY a JSON array with exactly {count} element(s): [{{"title":"...","description":"...","examples":"input/output examples"}}]"""
 
-    resp = client.chat.completions.create(model="gpt-4o", max_completion_tokens=800, messages=[{"role": "user", "content": prompt}])
+    resp = client.chat.completions.create(model="gpt-4o", max_completion_tokens=1200, messages=[{"role": "user", "content": prompt}])
     questions = parse_json_response(resp.choices[0].message.content or "[]", [])
-    return {"questions": questions, "language": language}
+    return {"questions": questions, "language": language, "isChoice": False}
+
+
+@router.post("/resume-score")
+async def score_resume(request: Request):
+    body = await request.json()
+    resume_text = body.get("resumeText", "").strip()
+    role = body.get("role", "Software Engineer").strip()
+    experience = body.get("experience", "mid")
+
+    if not resume_text:
+        raise HTTPException(status_code=400, detail="resumeText is required")
+
+    exp_context = {
+        "fresher": "0-1 years of experience (fresh graduate or career starter). Evaluate accordingly — expect limited work history, focus on academics, projects, and internships.",
+        "junior": "1-3 years of experience (junior level). Expect some real work history and foundational skills.",
+        "mid": "3-6 years of experience (mid-level). Expect solid work history, diverse projects, and growing leadership.",
+        "senior": "6+ years of experience (senior level). Expect extensive experience, leadership, architecture, and impact metrics.",
+    }.get(experience, "mid-level professional")
+
+    prompt = f"""You are a world-class recruiter and resume coach evaluating a resume for a "{role}" position.
+
+Experience Level Context: {exp_context}
+
+Resume Text:
+\"\"\"
+{resume_text[:4000]}
+\"\"\"
+
+Score this resume on a scale of 0–100 (calibrated to the experience level above), then return a JSON object with this exact structure:
+
+{{
+  "overall_score": <integer 0-100>,
+  "grade": "<A+|A|A-|B+|B|B-|C+|C|D|F>",
+  "verdict": "<one sentence hire/no-hire/maybe summary>",
+  "breakdown": {{
+    "skills_match": {{ "score": <0-100>, "comment": "..." }},
+    "experience_relevance": {{ "score": <0-100>, "comment": "..." }},
+    "impact_metrics": {{ "score": <0-100>, "comment": "..." }},
+    "formatting_clarity": {{ "score": <0-100>, "comment": "..." }},
+    "keywords_ats": {{ "score": <0-100>, "comment": "..." }}
+  }},
+  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+  "improvements": ["<specific actionable improvement 1>", "<specific actionable improvement 2>", "<specific actionable improvement 3>"],
+  "missing_skills": ["<skill or keyword missing for {role}>"],
+  "ats_keywords_found": ["<keyword found>"],
+  "summary": "<2-3 sentence overall assessment>"
+}}
+
+Important: Calibrate the score to the experience level. A fresher with great projects and relevant internships can score 80+. A senior with vague descriptions should score low. Return ONLY valid JSON, no markdown.
+"""
+
+    client = get_openai_client()
+    resp = client.chat.completions.create(
+        model="gpt-4o",
+        max_completion_tokens=1500,
+        messages=[
+            {"role": "system", "content": "You are an expert recruiter and resume evaluator. Return only valid JSON with no markdown fences."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    result = parse_json_response(resp.choices[0].message.content or "{}", {})
+    return result
 
 
 @router.post("/interviews/{interview_id}/coding-submit")

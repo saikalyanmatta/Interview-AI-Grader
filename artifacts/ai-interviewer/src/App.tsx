@@ -18,6 +18,7 @@ import ScheduledInterviewResults from "@/pages/ScheduledInterviewResults";
 import EditScheduledInterview from "@/pages/EditScheduledInterview";
 import InterviewAccess from "@/pages/InterviewAccess";
 import Profile from "@/pages/Profile";
+import ResumeScorer from "@/pages/ResumeScorer";
 import NotFound from "@/pages/not-found";
 import { useAuth } from "@workspace/replit-auth-web";
 import { Loader2 } from "lucide-react";
@@ -88,6 +89,7 @@ function Router() {
       <Route path="/employer/scheduled/:id/edit"><ProtectedRoute component={EditScheduledInterview} /></Route>
       <Route path="/interview-access/:id" component={InterviewAccess} />
       <Route path="/profile"><ProtectedRoute component={Profile} /></Route>
+      <Route path="/resume-score" component={ResumeScorer} />
       <Route component={NotFound} />
     </Switch>
   );

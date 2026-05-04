@@ -30,9 +30,12 @@ async function submitAnswer(ivId: number, qId: number, audioB64: string, frames:
   if (!r.ok) throw new Error("Failed to submit answer");
   return r.json();
 }
-async function fetchCodingQuestions(ivId: number): Promise<{ questions: CodingQuestion[]; language: string }> {
-  const r = await fetch(`${BASE}/api/interviews/${ivId}/coding-questions`, { credentials: "include" });
-  if (!r.ok) return { questions: [], language: "Python" };
+async function fetchCodingQuestions(ivId: number, languageOverride?: string): Promise<{ questions: CodingQuestion[]; language: string; isChoice: boolean }> {
+  const url = languageOverride
+    ? `${BASE}/api/interviews/${ivId}/coding-questions?language=${encodeURIComponent(languageOverride)}`
+    : `${BASE}/api/interviews/${ivId}/coding-questions`;
+  const r = await fetch(url, { credentials: "include" });
+  if (!r.ok) return { questions: [], language: "Python", isChoice: false };
   return r.json();
 }
 async function submitCodingAnswers(ivId: number, answers: { questionText: string; code: string }[]) {
@@ -81,6 +84,8 @@ export default function ActiveInterview() {
   const [codingLanguage, setCodingLanguage] = useState("Python");
   const [codingAnswers, setCodingAnswers] = useState<string[]>([]);
   const [isSubmittingCoding, setIsSubmittingCoding] = useState(false);
+  const [showLangPicker, setShowLangPicker] = useState(false);
+  const [langPickerLoading, setLangPickerLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -176,6 +181,11 @@ export default function ActiveInterview() {
       const result = await fetchNextQuestion(id);
       if (result.isComplete || !result.question) {
         const codingData = await fetchCodingQuestions(id);
+        if (codingData.isChoice) {
+          setPhase("init");
+          setShowLangPicker(true);
+          return;
+        }
         if (codingData.questions.length > 0) {
           setCodingQuestions(codingData.questions);
           setCodingLanguage(codingData.language);
@@ -273,6 +283,27 @@ export default function ActiveInterview() {
   const handleReplay = () => { if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => {}); } };
   const handleNext = () => { if (phase !== "answered") return; setPhase("init"); loadNextQuestion(); };
 
+  const handleLangPickerConfirm = async (lang: string) => {
+    setLangPickerLoading(true);
+    try {
+      const codingData = await fetchCodingQuestions(id, lang);
+      setCodingQuestions(codingData.questions);
+      setCodingLanguage(codingData.language);
+      setCodingAnswers(codingData.questions.map(() => ""));
+      setShowLangPicker(false);
+      if (codingData.questions.length > 0) {
+        setPhase("coding");
+      } else {
+        setPhase("completing");
+        await completeInterview(id);
+        setLocation(`/interview/${id}/report`);
+      }
+    } catch {
+      toast.error("Failed to load coding questions");
+    }
+    setLangPickerLoading(false);
+  };
+
   const handleSubmitCoding = async () => {
     setIsSubmittingCoding(true);
     try {
@@ -291,6 +322,38 @@ export default function ActiveInterview() {
   const isCountdown = phase === "countdown";
   const isRecording = phase === "recording";
   const isProcessing = phase === "processing";
+
+  const LANG_OPTIONS = ["Python", "JavaScript", "TypeScript", "Java", "C++", "C#", "Go", "Rust", "SQL"];
+
+  if (showLangPicker) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
+        <div className="glass-panel rounded-2xl p-8 max-w-md w-full text-center space-y-6">
+          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto">
+            <Code className="h-7 w-7 text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl font-display font-bold mb-2">Choose Your Coding Language</h2>
+            <p className="text-sm text-muted-foreground">The recruiter lets you pick your preferred language for the coding section.</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            {LANG_OPTIONS.map(lang => (
+              <button key={lang} onClick={() => handleLangPickerConfirm(lang)}
+                disabled={langPickerLoading}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-border bg-secondary/60 hover:border-primary hover:bg-primary/10 hover:text-primary transition-all disabled:opacity-50">
+                {lang}
+              </button>
+            ))}
+          </div>
+          {langPickerLoading && (
+            <div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" /> Generating questions…
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (phase === "coding") {
     return (
