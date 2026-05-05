@@ -25,6 +25,7 @@ export default function ScheduleInterview() {
     startTime: "",
     deadlineTime: "",
   });
+  // difficulty kept in state for backend but not shown in UI (proficiency is set per-skill on the job profile)
   const [saving, setSaving] = useState(false);
 
   const { data: jobs = [] } = useQuery({
@@ -48,11 +49,14 @@ export default function ScheduleInterview() {
           codingQuestionsCount: Number(form.codingQuestionsCount),
         }),
       });
-      if (!r.ok) throw new Error();
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(e.detail || "Failed to schedule interview");
+      }
       toast.success("Interview scheduled successfully");
       setLocation("/employer");
-    } catch {
-      toast.error("Failed to schedule interview");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to schedule interview");
       setSaving(false);
     }
   };
@@ -163,9 +167,6 @@ export default function ScheduleInterview() {
             </div>
           </div>
 
-          <SelectRow label="Difficulty Level" field="difficulty" options={["Easy", "Medium", "Hard"]}
-            description="Controls the complexity and depth of questions asked" />
-
           <SelectRow label="Strictness / Interview Style" field="interviewStyle"
             options={["Friendly", "Professional", "Moderate", "Strict"]}
             description="Friendly = supportive tone; Moderate = balanced; Strict = rigorous, high-pressure" />
@@ -214,7 +215,6 @@ export default function ScheduleInterview() {
           <div className="flex flex-wrap gap-2">
             {[
               form.interviewType,
-              form.difficulty + " Difficulty",
               form.interviewStyle + " Style",
               ...(Number(form.codingQuestionsCount) > 0
                 ? [`${form.codingQuestionsCount} Coding Q${Number(form.codingQuestionsCount) > 1 ? "s" : ""}`, form.codingLanguage]

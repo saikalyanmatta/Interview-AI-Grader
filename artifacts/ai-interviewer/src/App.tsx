@@ -12,6 +12,7 @@ import ActiveInterview from "@/pages/ActiveInterview";
 import InterviewReport from "@/pages/InterviewReport";
 import EmployerDashboard from "@/pages/EmployerDashboard";
 import CreateJob from "@/pages/CreateJob";
+import JobProfileView from "@/pages/JobProfileView";
 import ScheduleInterview from "@/pages/ScheduleInterview";
 import ScheduledInterviewCandidates from "@/pages/ScheduledInterviewCandidates";
 import ScheduledInterviewResults from "@/pages/ScheduledInterviewResults";
@@ -83,6 +84,7 @@ function Router() {
       <Route path="/interview/:id/report"><ProtectedRoute component={InterviewReport} /></Route>
       <Route path="/employer"><ProtectedRoute component={EmployerDashboard} /></Route>
       <Route path="/employer/jobs/new"><ProtectedRoute component={CreateJob} /></Route>
+      <Route path="/employer/jobs/:id"><ProtectedRoute component={JobProfileView} /></Route>
       <Route path="/employer/schedule"><ProtectedRoute component={ScheduleInterview} /></Route>
       <Route path="/employer/scheduled/:id/candidates"><ProtectedRoute component={ScheduledInterviewCandidates} /></Route>
       <Route path="/employer/scheduled/:id/results"><ProtectedRoute component={ScheduledInterviewResults} /></Route>

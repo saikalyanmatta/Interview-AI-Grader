@@ -32,8 +32,9 @@ export default function CreateJob() {
         body: JSON.stringify({ title, role, description, skills }),
       });
       if (!r.ok) throw new Error();
+      const created = await r.json();
       toast.success("Job profile created");
-      setLocation("/employer");
+      setLocation(`/employer/jobs/${created.id}`);
     } catch {
       toast.error("Failed to create job");
       setSaving(false);

@@ -7,6 +7,16 @@ from db.database import get_db
 from db.models import ScheduledInterview, InterviewCandidate, Interview, InterviewReport, Job, User
 from routes.auth import get_current_user
 
+
+def _parse_dt(s: str) -> datetime:
+    s = s.replace("Z", "+00:00").strip()
+    for fmt in ["%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"]:
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return datetime.fromisoformat(s[:19])
+
 router = APIRouter()
 
 
@@ -48,8 +58,8 @@ async def create_scheduled(request: Request, db: DBSession = Depends(get_db)):
         employer_id=user["id"],
         job_id=body.get("jobId"),
         title=title,
-        start_time=datetime.fromisoformat(start_time.replace("Z", "+00:00")),
-        deadline_time=datetime.fromisoformat(deadline_time.replace("Z", "+00:00")),
+        start_time=_parse_dt(start_time),
+        deadline_time=_parse_dt(deadline_time),
         coding_questions_count=body.get("codingQuestionsCount", 0),
         role=body.get("role", "Software Engineer"),
         difficulty=body.get("difficulty", "Medium"),
@@ -95,9 +105,9 @@ async def update_scheduled(si_id: int, request: Request, db: DBSession = Depends
     if "title" in body and body["title"]:
         si.title = body["title"]
     if "startTime" in body and body["startTime"]:
-        si.start_time = datetime.fromisoformat(body["startTime"].replace("Z", "+00:00"))
+        si.start_time = _parse_dt(body["startTime"])
     if "deadlineTime" in body and body["deadlineTime"]:
-        si.deadline_time = datetime.fromisoformat(body["deadlineTime"].replace("Z", "+00:00"))
+        si.deadline_time = _parse_dt(body["deadlineTime"])
     db.commit()
     db.refresh(si)
     return _si_to_dict(si)

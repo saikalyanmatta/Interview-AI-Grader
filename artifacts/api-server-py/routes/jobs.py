@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session as DBSession
 from db.database import get_db
 from db.models import Job
 from routes.auth import get_current_user
+from lib.ai import get_openai_client, parse_json_response
 
 router = APIRouter()
 
@@ -70,6 +71,70 @@ async def update_job(job_id: int, request: Request, db: DBSession = Depends(get_
     db.commit()
     db.refresh(job)
     return _job_to_dict(job)
+
+
+@router.post("/jobs/{job_id}/generate-questions")
+async def generate_job_questions(job_id: int, request: Request, db: DBSession = Depends(get_db)):
+    user = await get_current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    job = db.query(Job).filter(Job.id == job_id, Job.user_id == user["id"]).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    skills = job.skills or []
+    skill_names = [s["name"] for s in skills if isinstance(s, dict) and s.get("name")]
+    skill_levels = {s["name"]: s.get("requiredLevel", 7) for s in skills if isinstance(s, dict)}
+
+    skill_section = ""
+    if skill_names:
+        skill_section = "\n".join(
+            f"- {name} (proficiency required: {skill_levels.get(name, 7)}/10)"
+            for name in skill_names
+        )
+    else:
+        skill_section = "General software engineering skills"
+
+    prompt = f"""You are an expert technical interviewer. Generate exactly 50 high-quality interview questions for the following job role.
+
+Role: {job.role}
+Job Title: {job.title}
+Job Description: {job.description[:800] if job.description else ""}
+
+Required Skills:
+{skill_section}
+
+Generate exactly 50 questions spread across these categories (use all if applicable):
+- Behavioral (7 questions): Situational, STAR-method, soft skills
+- Technical Theory (10 questions): Concepts, design, architecture
+- Skill-Specific (20 questions): Directly test the required skills, 2-3 questions per skill
+- Problem Solving (8 questions): Algorithms, logic, system design thinking
+- Role-Specific (5 questions): Specific to the job title/domain
+
+Return ONLY valid JSON with this structure (no markdown, no extra text):
+{{
+  "questions": [
+    {{
+      "id": 1,
+      "category": "Behavioral|Technical Theory|Skill-Specific|Problem Solving|Role-Specific",
+      "skill": "skill name if skill-specific, else null",
+      "difficulty": "Easy|Medium|Hard",
+      "question": "The full question text"
+    }}
+  ]
+}}"""
+
+    client = get_openai_client()
+    resp = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        max_completion_tokens=4000,
+        temperature=0.7,
+    )
+    raw = resp.choices[0].message.content or ""
+    data = parse_json_response(raw)
+    questions = data.get("questions", []) if data else []
+    return {"jobId": job_id, "role": job.role, "title": job.title, "questions": questions}
 
 
 @router.delete("/jobs/{job_id}", status_code=204)

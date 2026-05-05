@@ -159,6 +159,11 @@ export default function EmployerDashboard() {
                     <div className="text-sm text-muted-foreground">{job.role} • {(job.skills || []).length} skills</div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    <Link href={`/employer/jobs/${job.id}`}>
+                      <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                        <BarChart3 className="h-3.5 w-3.5" />View Questions
+                      </button>
+                    </Link>
                     <button onClick={() => { if (confirm("Delete job?")) deleteJob.mutate(job.id); }} className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
